@@ -278,5 +278,15 @@ Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/**
 
 
 !*.uasset
-
+/Content/__ExternalActors__
+/Content/__ExternalObjects__
+/Content/Characters
+/Content/Collections
+/Content/Developers
+/Content/Effects
+/Content/FirstPerson
+/Content/FirstPersonArms
+/Content/FPWeapon
+/Content/LevelPrototyping
+/Content/PhysicsMaterials
 
