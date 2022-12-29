@@ -8,16 +8,17 @@
 /**
  * This class contains info about the full set of commands used in this editor mode.
  */
-class FFDAssistorEditorModeCommands : public TCommands<FFDAssistorEditorModeCommands>
+class FFDOverlayEditorEditorModeCommands : public TCommands<FFDOverlayEditorEditorModeCommands>
 {
 public:
-	FFDAssistorEditorModeCommands();
+	FFDOverlayEditorEditorModeCommands();
 
 	virtual void RegisterCommands() override;
 	static TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetCommands();
-public:
-	// For connecting ModelingMode with FDEditor
-	TSharedPtr<FUICommandInfo> LaunchFDFBOverlayEditor;
+
+	TSharedPtr<FUICommandInfo> SimpleTool;
+	TSharedPtr<FUICommandInfo> InteractiveTool;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 };

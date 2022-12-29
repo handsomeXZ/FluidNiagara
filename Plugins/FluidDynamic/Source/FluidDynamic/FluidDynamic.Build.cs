@@ -33,7 +33,7 @@ public class FluidDynamic : ModuleRules
                 "RenderCore",
                 // Data interface dependencies
 				"Niagara", "NiagaraCore", "VectorVM", "RenderCore", "RHI", "NiagaraShader", "NiagaraEditor",
-				"ProPertyEditor",
+				"PropertyEditor",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -50,7 +50,7 @@ public class FluidDynamic : ModuleRules
                 "Projects",
                 // Data interface dependencies
 				"Niagara", "NiagaraCore", "VectorVM", "RenderCore", "RHI", "NiagaraShader", "NiagaraEditor",
-				"ProPertyEditor",
+				"PropertyEditor",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

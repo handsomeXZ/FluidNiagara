@@ -22,13 +22,6 @@
 			]
 		},
 		{
-			"Name": "ModelingToolsEditorMode",
-			"Enabled": true,
-			"TargetAllowList": [
-				"Editor"
-			]
-		},
-		{
 			"Name": "NiagaraFluids",
 			"Enabled": true
 		},

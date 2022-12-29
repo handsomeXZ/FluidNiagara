@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class FDAssistor : ModuleRules
+public class FDOverlayEditor : ModuleRules
 {
-	public FDAssistor(ReadOnlyTargetRules Target) : base(Target)
+	public FDOverlayEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -25,15 +25,10 @@ public class FDAssistor : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-                "Core",
-
-                "UnrealEd",
-                "InputCore",
-                "InteractiveToolsFramework",
-                "MeshModelingToolsExp",
-                "GeometryProcessingInterfaces" // For supporting launching the UVEditor directly from Modeling Tools or elsewhere
+				"Core",
+				// ... add other public dependencies that you statically link with here ...
 			}
-            );
+			);
 			
 		
 		PrivateDependencyModuleNames.AddRange(
@@ -49,15 +44,7 @@ public class FDAssistor : ModuleRules
 				"UnrealEd",
 				"LevelEditor",
 				"InteractiveToolsFramework",
-				"EditorInteractiveToolsFramework",
-				"EditorSubsystem",
-				"WorkspaceMenuStructure",
-				"UVEditorTools",
-				"DynamicMesh",
-				"AdvancedPreviewScene",
-				"ModelingComponentsEditorOnly", // Static/skeletal mesh tool targets
-				"ModelingToolsEditorMode",
-				"ModelingComponents",
+				"EditorInteractiveToolsFramework"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

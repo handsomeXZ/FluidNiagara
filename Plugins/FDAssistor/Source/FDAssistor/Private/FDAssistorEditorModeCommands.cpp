@@ -16,17 +16,17 @@ FFDAssistorEditorModeCommands::FFDAssistorEditorModeCommands()
 
 void FFDAssistorEditorModeCommands::RegisterCommands()
 {
-	TArray <TSharedPtr<FUICommandInfo>>& ToolCommands = Commands.FindOrAdd(NAME_Default);
+	TArray <TSharedPtr<FUICommandInfo>>& RegisteredTools = Commands.FindOrAdd(NAME_Default);
+	// 这必须用编译时宏来完成，因为UI_COMMAND扩展为LOCTEXT宏
+#define REGISTER_MODELING_TOOL_COMMAND(ToolCommandInfo, ToolName, ToolTip) \
+		UI_COMMAND(ToolCommandInfo, ToolName, ToolTip, EUserInterfaceActionType::Button, FInputChord()); \
+		RegisteredTools.Add(ToolCommandInfo);
 
-	UI_COMMAND(SimpleTool, "Show Actor Info", "Opens message box with info about a clicked actor", EUserInterfaceActionType::Button, FInputChord());
-	ToolCommands.Add(SimpleTool);
+	// 这是直接完成的，而不是使用 REGISTER_宏，因为我们不希望它添加到工具列表或使用切换按钮
+	//UI_COMMAND(LaunchFDFBOverlayEditor, "FDFBOverlayEditor", "Launch FDFBOverlay asset editor", EUserInterfaceActionType::Button, FInputChord());
 
-	UI_COMMAND(InteractiveTool, "Measure Distance", "Measures distance between 2 points (click to set origin, shift-click to set end point)", EUserInterfaceActionType::ToggleButton, FInputChord());
-	ToolCommands.Add(InteractiveTool);
-
-	// These are part of the asset editor UI
-	UI_COMMAND(ApplyChanges, "Apply", "Apply changes to original meshes", EUserInterfaceActionType::Button, FInputChord());
-
+	// 直接加入 Commands列表，我不需要自己实现 BuildToolPalette，因为我已经确保了按钮类型单一且依赖已在这之前加载
+	REGISTER_MODELING_TOOL_COMMAND(LaunchFDFBOverlayEditor, "FDFBOverlayEditor", "Launch FDFBOverlay asset editor");
 
 
 }

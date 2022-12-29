@@ -4,16 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "Toolkits/BaseToolkit.h"
-#include "FDAssistorEditorMode.h"
+#include "FDOverlayEditorEditorMode.h"
 
 /**
  * This FModeToolkit just creates a basic UI panel that allows various InteractiveTools to
  * be initialized, and a DetailsView used to show properties of the active Tool.
  */
-class FFDAssistorEditorModeToolkit : public FModeToolkit
+class FFDOverlayEditorEditorModeToolkit : public FModeToolkit
 {
 public:
-	FFDAssistorEditorModeToolkit();
+	FFDOverlayEditorEditorModeToolkit();
 
 	/** FModeToolkit interface */
 	virtual void Init(const TSharedPtr<IToolkitHost>& InitToolkitHost, TWeakObjectPtr<UEdMode> InOwningMode) override;
@@ -22,6 +22,4 @@ public:
 	/** IToolkit interface */
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
-
-
 };
