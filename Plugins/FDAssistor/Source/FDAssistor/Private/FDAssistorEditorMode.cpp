@@ -13,16 +13,8 @@
 #include "EditorModeManager.h"
 #include "Selection.h"
 
-#include "FullBodyOverlayEditor/FDFBOverlayEditorSubsystem.h"
+#include "FDOverlayEditorSubsystem.h"
 
-
-//////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////// 
-// AddYourTool Step 1 - include the header file for your Tools here
-//////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////// 
-#include "Tools/FDAssistorSimpleTool.h"
-#include "Tools/FDAssistorInteractiveTool.h"
 
 // step 2: register a ToolBuilder in FFDAssistorEditorMode::Enter() below
 
@@ -78,13 +70,13 @@ void UFDAssistorEditorMode::RegisterFDEditor()
 {
 	
 	const FFDAssistorEditorModeCommands& ToolManagerCommands = FFDAssistorEditorModeCommands::Get();
-	UFDFBOverlayEditorSubsystem* FDFBOverlaySubsystem = GEditor->GetEditorSubsystem<UFDFBOverlayEditorSubsystem>();
+	UFDOverlayEditorSubsystem* FDOverlaySubsystem = GEditor->GetEditorSubsystem<UFDOverlayEditorSubsystem>();
 
-	check(FDFBOverlaySubsystem);
+	check(FDOverlaySubsystem);
 
 	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
-	CommandList->MapAction(ToolManagerCommands.LaunchFDFBOverlayEditor,
-		FExecuteAction::CreateLambda([this, FDFBOverlaySubsystem]()
+	CommandList->MapAction(ToolManagerCommands.LaunchFDOverlayEditor,
+		FExecuteAction::CreateLambda([this, FDOverlaySubsystem]()
 			{
 				EToolsContextScope ToolScope = GetDefaultToolScope();
 				UEditorInteractiveToolsContext* UseToolsContext = GetInteractiveToolsContext(ToolScope);
@@ -99,9 +91,9 @@ void UFDAssistorEditorMode::RegisterFDEditor()
 				UseToolsContext->GetParentEditorModeManager()->GetSelectedComponents()->GetSelectedObjects(SelectedComponents);
 				SelectedObjects.Append(SelectedActors);
 				SelectedObjects.Append(SelectedComponents);
-				FDFBOverlaySubsystem->LaunchFDFBOverlayEditor(SelectedObjects);
+				FDOverlaySubsystem->LaunchFDOverlayEditor(SelectedObjects);
 			}),
-		FCanExecuteAction::CreateLambda([this, FDFBOverlaySubsystem]()
+		FCanExecuteAction::CreateLambda([this, FDOverlaySubsystem]()
 			{
 				EToolsContextScope ToolScope = GetDefaultToolScope();
 				UEditorInteractiveToolsContext* UseToolsContext = GetInteractiveToolsContext(ToolScope);
@@ -116,7 +108,7 @@ void UFDAssistorEditorMode::RegisterFDEditor()
 				UseToolsContext->GetParentEditorModeManager()->GetSelectedComponents()->GetSelectedObjects(SelectedComponents);
 				SelectedObjects.Append(SelectedActors);
 				SelectedObjects.Append(SelectedComponents);
-				return FDFBOverlaySubsystem->CanLaunchFDFBOverlayEditor(SelectedObjects);
+				return FDOverlaySubsystem->CanLaunchFDOverlayEditor(SelectedObjects);
 			})
 		);
 }

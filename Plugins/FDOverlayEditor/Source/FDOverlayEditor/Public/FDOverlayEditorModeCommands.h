@@ -8,16 +8,23 @@
 /**
  * This class contains info about the full set of commands used in this editor mode.
  */
-class FFDAssistorEditorModeCommands : public TCommands<FFDAssistorEditorModeCommands>
+class FFDOverlayEditorModeCommands : public TCommands<FFDOverlayEditorModeCommands>
 {
 public:
-	FFDAssistorEditorModeCommands();
+	FFDOverlayEditorModeCommands();
 
 	virtual void RegisterCommands() override;
 	static TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetCommands();
+
 public:
-	// For connecting ModelingMode with FDEditor
-	TSharedPtr<FUICommandInfo> LaunchFDOverlayEditor;
+
+	// TODO: 还未在 Mode里为下面这些CommandInfo 调用 RegisterTool
+	TSharedPtr<FUICommandInfo> ApplyChanges;
+
+	// 这些被链接到各种工具按钮。
+	TSharedPtr<FUICommandInfo> AutoCalTool;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
+
 };

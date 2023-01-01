@@ -27,7 +27,14 @@ public class FDOverlayEditor : ModuleRules
 			{
 				"Core",
 				// ... add other public dependencies that you statically link with here ...
-			}
+				"UnrealEd",
+                "InputCore",
+                "InteractiveToolsFramework",
+                "MeshModelingToolsExp",
+                "GeometryProcessingInterfaces",
+                "RHI",
+                "RenderCore"
+            }
 			);
 			
 		
@@ -38,15 +45,25 @@ public class FDOverlayEditor : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"Projects",
 				"InputCore",
 				"EditorFramework",
 				"EditorStyle",
 				"UnrealEd",
 				"LevelEditor",
 				"InteractiveToolsFramework",
-				"EditorInteractiveToolsFramework"
+				"EditorInteractiveToolsFramework",
 				// ... add private dependencies that you statically link with here ...	
-			}
+                "EditorSubsystem",
+                "WorkspaceMenuStructure",
+                "UVEditorTools",
+                "DynamicMesh",
+				"GeometryCore",
+				"AdvancedPreviewScene",
+                "ModelingComponentsEditorOnly", // Static/skeletal mesh tool targets
+				"ModelingToolsEditorMode",
+                "ModelingComponents",
+            }
 			);
 		
 		

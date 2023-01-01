@@ -27,11 +27,7 @@ public class FDAssistor : ModuleRules
 			{
                 "Core",
 
-                "UnrealEd",
-                "InputCore",
-                "InteractiveToolsFramework",
-                "MeshModelingToolsExp",
-                "GeometryProcessingInterfaces" // For supporting launching the UVEditor directly from Modeling Tools or elsewhere
+				// For supporting launching the UVEditor directly from Modeling Tools or elsewhere
 			}
             );
 			
@@ -49,16 +45,10 @@ public class FDAssistor : ModuleRules
 				"UnrealEd",
 				"LevelEditor",
 				"InteractiveToolsFramework",
-				"EditorInteractiveToolsFramework",
-				"EditorSubsystem",
-				"WorkspaceMenuStructure",
-				"UVEditorTools",
-				"DynamicMesh",
-				"AdvancedPreviewScene",
-				"ModelingComponentsEditorOnly", // Static/skeletal mesh tool targets
-				"ModelingToolsEditorMode",
-				"ModelingComponents",
 				// ... add private dependencies that you statically link with here ...	
+				"EditorInteractiveToolsFramework",
+				"ModelingToolsEditorMode",
+				"FDOverlayEditor",
 			}
 			);
 		

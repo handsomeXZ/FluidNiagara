@@ -22,11 +22,12 @@ void FFDAssistorEditorModeCommands::RegisterCommands()
 		UI_COMMAND(ToolCommandInfo, ToolName, ToolTip, EUserInterfaceActionType::Button, FInputChord()); \
 		RegisteredTools.Add(ToolCommandInfo);
 
+
 	// 这是直接完成的，而不是使用 REGISTER_宏，因为我们不希望它添加到工具列表或使用切换按钮
-	//UI_COMMAND(LaunchFDFBOverlayEditor, "FDFBOverlayEditor", "Launch FDFBOverlay asset editor", EUserInterfaceActionType::Button, FInputChord());
+	//UI_COMMAND(LaunchFDOverlayEditor, "FDOverlayEditor", "Launch FDOverlay asset editor", EUserInterfaceActionType::Button, FInputChord());
 
 	// 直接加入 Commands列表，我不需要自己实现 BuildToolPalette，因为我已经确保了按钮类型单一且依赖已在这之前加载
-	REGISTER_MODELING_TOOL_COMMAND(LaunchFDFBOverlayEditor, "FDFBOverlayEditor", "Launch FDFBOverlay asset editor");
+	REGISTER_MODELING_TOOL_COMMAND(LaunchFDOverlayEditor, "FDOverlayEditor", "Launch FDOverlay asset editor");
 
 
 }
