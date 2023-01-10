@@ -9,7 +9,8 @@
 #include "EdModeInteractiveToolsContext.h"
 #include "Drawing/MeshDebugDrawing.h"
 #include "FrameTypes.h"
-//#include "FDOverlayEditorMode.h"
+#include "Templates\SharedPointer.h"
+
 #include "Context/FDOverlayViewportButtonsAPI.h"
 
 
@@ -22,10 +23,15 @@ FFDOverlay3DViewportClient::FFDOverlay3DViewportClient(FEditorModeTools* InModeT
 	// We want our near clip plane to be quite close so that we can zoom in further.
 	OverrideNearClipPlane(KINDA_SMALL_NUMBER);
 }
+
 void FFDOverlay3DViewportClient::FocusCameraOnSelection()
 {
 	if (ViewportButtonsAPI)
 	{
 		ViewportButtonsAPI->InitiateFocusCameraOnSelection();
 	}
+}
+void FFDOverlay3DViewportClient::SetWidgetMode(UE::Widget::EWidgetMode NewMode)
+{
+	
 }

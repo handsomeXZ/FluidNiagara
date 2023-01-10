@@ -23,19 +23,9 @@
 	],
 	"Plugins": [
 		{
-			"Name": "MeshModelingToolsetExp",
+			"Name": "FDOverlayEditor",
 			"Enabled": true,
 			"TargetAllowList": [ "Editor" ]
 		},
-		{
-			"Name": "UVEditor",
-			"Enabled": true,
-			"TargetAllowList": [ "Editor" ]
-		},
-		{
-			"Name": "ModelingToolsEditorMode",
-			"Enabled": true,
-			"TargetAllowList": [ "Editor" ]
-		}
 	]
 }

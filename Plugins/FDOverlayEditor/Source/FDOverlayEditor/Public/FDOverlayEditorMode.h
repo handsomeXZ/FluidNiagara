@@ -1,16 +1,23 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Tools/UEdMode.h"
 #include "ToolTargets/ToolTarget.h" // FToolTargetTypeRequirements
+#include "GeometryBase.h"
+
 #include "FDOverlayEditorMode.generated.h"
 
 class UFDOverlayLive2DViewportAPI;
 class UFDOverlayViewportButtonsAPI;
 class UFDOverlaySelectionAPI;
-class UContextObjectStore;
+class UFDOverlayMeshInput;
 class UFDOverlayContextObject;
+class UContextObjectStore;
 class UWorld;
+class UMeshOpPreviewWithBackgroundCompute;
+
+PREDECLARE_GEOMETRY(class FDynamicMesh3);
 
 UCLASS(Transient)
 class FDOVERLAYEDITOR_API UFDOverlayEditorMode : public UEdMode
@@ -63,7 +70,7 @@ public:
 
 protected:
 	void InitializeModeContexts();
-	void InitializeTargets(){};
+	void InitializeTargets();
 
 protected:
 	
@@ -80,6 +87,26 @@ protected:
 	* 转换应该用于3d预览，1:1与OriginalObjectsToEdit和ToolTargets。
 	*/
 	TArray<FTransform> Transforms;
+
+	TArray<TSharedPtr<UE::Geometry::FDynamicMesh3>> AppliedCanonicalMeshes;
+
+	/**
+	* Tool targets created from OriginalObjectsToEdit (and 1:1 with that array) that provide
+	* us with dynamic meshes whose UV layers we unwrap.
+	*/
+	UPROPERTY()
+	TArray<TObjectPtr<UToolTarget>> ToolTargets;
+
+	TArray<TObjectPtr<UMeshOpPreviewWithBackgroundCompute>> AppliedPreviews;
+
+	/**
+	* Input objects we give to the tools, one per displayed UV layer. This includes pointers
+	* to the applied meshes, but also contains the unwrapped mesh and preview. These should
+	* not be assumed to be the same length as the asset arrays in case we someday do not
+	* display exactly a single layer per asset.
+	*/
+	UPROPERTY()
+	TArray<TObjectPtr<UFDOverlayMeshInput>> ToolInputObjects;
 
 	// 这里主要是为了方便，避免在函数之间传递它。
 	UPROPERTY()

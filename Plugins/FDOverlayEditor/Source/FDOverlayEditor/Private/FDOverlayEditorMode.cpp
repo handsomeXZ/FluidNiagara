@@ -16,6 +16,7 @@
 #include "Context/FDOverlayAssetInputsContext.h"
 #include "Tools/FDOverlayEditorAutoCalTool.h"
 
+#include "UVEditorUXSettings.h"
 
 #include "EdModeInteractiveToolsContext.h"
 #include "InteractiveToolManager.h"
@@ -25,6 +26,9 @@
 #include "TargetInterfaces/AssetBackedTarget.h"
 #include "TargetInterfaces/DynamicMeshCommitter.h"
 #include "TargetInterfaces/DynamicMeshProvider.h"
+#include "ModelingToolTargetUtil.h"
+#include "MeshOpPreviewHelpers.h" // UMeshOpPreviewWithBackgroundCompute
+#include "ToolSetupUtil.h"
 
 // step 2: register a ToolBuilder in FFDOverlayEditorMode::Enter() below
 
@@ -140,10 +144,9 @@ void UFDOverlayEditorMode::Enter()
 	//		ActivateDefaultTool();
 	//		SetSimulationWarning(false);
 	//	});
-
-
-	//InitializeModeContexts();
-
+	RegisterTools();
+	InitializeModeContexts();
+	InitializeTargets();
 	bIsActive = true;
 	
 }
@@ -160,13 +163,13 @@ void UFDOverlayEditorMode::InitializeAssetEditorContexts(UContextObjectStore& Co
 	UFDOverlayViewportButtonsAPI& ViewportButtonsAPI, UFDOverlayLive2DViewportAPI& FDOverlayLive2DViewportAPI)
 {
 	using namespace FDEditorModeLocals;
-	//UFDOverlayAssetInputsContext* AssetInputsContext = ContextStore.FindContext<UFDOverlayAssetInputsContext>();
-	//if (!AssetInputsContext)
-	//{
-	//	AssetInputsContext = NewObject<UFDOverlayAssetInputsContext>();
-	//	AssetInputsContext->Initialize(AssetsIn, TransformsIn);
-	//	ContextStore.AddContextObject(AssetInputsContext);
-	//}
+	UFDOverlayAssetInputsContext* AssetInputsContext = ContextStore.FindContext<UFDOverlayAssetInputsContext>();
+	if (!AssetInputsContext)
+	{
+		AssetInputsContext = NewObject<UFDOverlayAssetInputsContext>();
+		AssetInputsContext->Initialize(AssetsIn, TransformsIn);
+		ContextStore.AddContextObject(AssetInputsContext);
+	}
 
 	UFDOverlayLive3DPreviewAPI* Live3DPreviewAPI = ContextStore.FindContext<UFDOverlayLive3DPreviewAPI>();
 	if (!Live3DPreviewAPI)
@@ -242,13 +245,13 @@ void UFDOverlayEditorMode::InitializeModeContexts()
 	LivePreviewWorld = Live3DPreviewAPI->GetLivePreviewWorld();
 	ContextsToUpdateOnToolEnd.Add(Live3DPreviewAPI);
 
-	UFDOverlayViewportButtonsAPI* ViewportButtonsAPI = ContextStore->FindContext<UFDOverlayViewportButtonsAPI>();
-	check(ViewportButtonsAPI);
-	ContextsToUpdateOnToolEnd.Add(ViewportButtonsAPI);
+	//UFDOverlayViewportButtonsAPI* ViewportButtonsAPI = ContextStore->FindContext<UFDOverlayViewportButtonsAPI>();
+	//check(ViewportButtonsAPI);
+	//ContextsToUpdateOnToolEnd.Add(ViewportButtonsAPI);
 
-	UFDOverlayLive2DViewportAPI* Live2DPreviewAPI = ContextStore->FindContext<UFDOverlayLive2DViewportAPI>();
-	check(Live2DPreviewAPI);
-	ContextsToUpdateOnToolEnd.Add(Live2DPreviewAPI);
+	//UFDOverlayLive2DViewportAPI* Live2DPreviewAPI = ContextStore->FindContext<UFDOverlayLive2DViewportAPI>();
+	//check(Live2DPreviewAPI);
+	//ContextsToUpdateOnToolEnd.Add(Live2DPreviewAPI);
 
 
 	// 辅助函数，用于添加模式自己创建的上下文，而不是从资产编辑器中获取。
@@ -296,10 +299,10 @@ void UFDOverlayEditorMode::InitializeModeContexts()
 
 }
 
-/*
+
 void UFDOverlayEditorMode::InitializeTargets()
 {
-	using namespace UVEditorModeLocals;
+	using namespace FDEditorModeLocals;
 
 	check(LivePreviewWorld);
 
@@ -352,12 +355,12 @@ void UFDOverlayEditorMode::InitializeTargets()
 			ToolInputObject->AppliedPreview->PreviewMesh->SetTransform(Transforms[AssetID]);
 		}
 
-		ToolInputObject->UnwrapPreview->PreviewMesh->SetMaterial(
-			0, ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(
-				GetToolManager(),
-				FUVEditorUXSettings::GetTriangleColorByTargetIndex(AssetID),
-				FUVEditorUXSettings::UnwrapTriangleDepthOffset,
-				FUVEditorUXSettings::UnwrapTriangleOpacity));
+		//ToolInputObject->UnwrapPreview->PreviewMesh->SetMaterial(
+		//	0, ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(
+		//		GetToolManager(),
+		//		FUVEditorUXSettings::GetTriangleColorByTargetIndex(AssetID),
+		//		FUVEditorUXSettings::UnwrapTriangleDepthOffset,
+		//		FUVEditorUXSettings::UnwrapTriangleOpacity));
 
 		// 我们并不需要线框显示模式，如果有需要后面可以参考下列注释代码。
 		//// Set up the wireframe display of the unwrapped mesh.
@@ -390,24 +393,24 @@ void UFDOverlayEditorMode::InitializeTargets()
 		//ToolInputObject->WireframeDisplay = WireframeDisplay;
 
 		// 绑定到委托，这样我们就可以检测到变化
-		ToolInputObject->OnCanonicalModified.AddWeakLambda(this, [this]
-		(UUVEditorToolMeshInput* InputObject, const UFDOverlayMeshInput::FCanonicalModifiedInfo&) {
-				ModifiedAssetIDs.Add(InputObject->AssetID);
-			});
+		//ToolInputObject->OnCanonicalModified.AddWeakLambda(this, [this]
+		//(UUVEditorToolMeshInput* InputObject, const UFDOverlayMeshInput::FCanonicalModifiedInfo&) {
+		//		ModifiedAssetIDs.Add(InputObject->AssetID);
+		//	});
 
 		ToolInputObjects.Add(ToolInputObject);
 	}
 
 	// 为 layer/channel selection 做准备
-	InitializeAssetNames(ToolTargets, AssetNames);
-	PendingUVLayerIndex.SetNumZeroed(ToolTargets.Num());
+	//InitializeAssetNames(ToolTargets, AssetNames);
+	//PendingUVLayerIndex.SetNumZeroed(ToolTargets.Num());
 
 
 	// Finish initializing the selection api
-	SelectionAPI->SetTargets(ToolInputObjects);
+	//SelectionAPI->SetTargets(ToolInputObjects);
 
 }
-*/
+
 
 
 
@@ -442,6 +445,7 @@ void UFDOverlayEditorMode::RegisterTools()
 
 
 	UFDOverlayEditorAutoCalToolBuilder* FDOverlayEditorAutoCalToolBuilder = NewObject<UFDOverlayEditorAutoCalToolBuilder>();
+	FDOverlayEditorAutoCalToolBuilder->Targets = &ToolInputObjects;
 	RegisterTool(CommandInfos.AutoCalTool, TEXT("AutoCalTool"), FDOverlayEditorAutoCalToolBuilder);
 
 }

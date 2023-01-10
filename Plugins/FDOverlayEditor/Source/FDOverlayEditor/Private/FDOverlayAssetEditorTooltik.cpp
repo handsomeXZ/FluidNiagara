@@ -7,7 +7,7 @@
 #include "FDOverlayEditorSubsystem.h"
 #include "FDOverlayEditorModule.h"
 #include "SFDOverlay2DViewport.h"
-//#include "FDOverlayEditorMode.h"
+#include "FDOverlayEditorMode.h"
 //#include "FDOverlayEditorModeCommands.h"
 
 #include "PreviewScene.h"
@@ -260,9 +260,9 @@ void FFDOverlayAssetEditorToolkit::PostInitAssetEditor()
 	ObjectTransforms.SetNum(ObjectsToEdit.Num());
 
 	// 这个静态方法初始化了各种上下文，使得 Mode在Enter()的 ContextStore 中可用才能正常工作。
-	/*UFDOverlayEditorMode::InitializeAssetEditorContexts(*EditorModeManager->GetInteractiveToolsContext()->ContextObjectStore,
+	UFDOverlayEditorMode::InitializeAssetEditorContexts(*EditorModeManager->GetInteractiveToolsContext()->ContextObjectStore,
 		ObjectsToEdit, ObjectTransforms, *Live3DPreviewViewportClient, *Live3DPreviewEditorModeManager,
-		*ViewportButtonsAPI, *FDOverlayLive2DViewportAPI);*/
+		*ViewportButtonsAPI, *FDOverlayLive2DViewportAPI);
 
 	// 目前，除了设置所有的UI元素，工具箱还启动了FD编辑器模式，这是编辑器始终工作的模式(东西被打包到一个模式中，以便在必要时可以移动到另一个资产编辑器中)。
 	// 我们需要激活UV模式来创建左侧的工具箱。

@@ -8,6 +8,7 @@
 
 class UFDOverlayViewportButtonsAPI;
 
+
 // Types of camera motion for the UV Editor 3D viewport
 enum EFDOverlay3DViewportClientCameraMode {
 	Orbit,
@@ -48,10 +49,11 @@ public:
 			return FEditorViewportClient::ShouldOrbitCamera();
 		}
 	}
-	bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override {	return false; }
-	void SetWidgetMode(UE::Widget::EWidgetMode NewMode) override {}
+	bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override {	return true; }
+	void SetWidgetMode(UE::Widget::EWidgetMode NewMode) override;
 	UE::Widget::EWidgetMode GetWidgetMode() const override { return UE::Widget::EWidgetMode::WM_None; }
 	void FocusCameraOnSelection();
+
 public:
 
 	void SetCameraMode(EFDOverlay3DViewportClientCameraMode CameraModeIn) { CameraMode = CameraModeIn; };

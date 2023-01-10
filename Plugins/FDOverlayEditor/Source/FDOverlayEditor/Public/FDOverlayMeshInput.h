@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "DynamicMesh/DynamicMeshAttributeSet.h" // FDynamicMeshUVOverlay
 #include "ToolTargets/ToolTarget.h"
 #include "VectorTypes.h"
 
@@ -14,7 +15,7 @@
 class UMaterialInterface;
 class UMeshOpPreviewWithBackgroundCompute;
 class UMeshElementsVisualizer;
-
+PREDECLARE_GEOMETRY(class FDynamicMesh3);
 
 /**
 * 由UV编辑器工具操作的资产所需信息的包。它包括一个UV展开网格，一个应用了UV层的网格，以及每个网格的背景操作兼容预览。它还提供了方便的方法，用于从其中一个表示中更新所有表示，在可能的情况下使用“快速更新”代码路径。
@@ -86,18 +87,17 @@ public:
 	TObjectPtr<UToolTarget> SourceTarget = nullptr;
 	int32 AssetID = -1;
 	int32 UVLayerIndex = 0;
+	int32 MaterialIndex = -1;
+	int32 MaxMaterialIndex = -1;
 
 	// 用于生成和烘烤展开的映射。
 	TFunction<FVector3d(const FVector2f&)> UVToVertPosition;
 	TFunction<FVector2f(const FVector3d&)> VertPositionToUV;
 
-	bool InitializeMeshes(UToolTarget* Target, 
-		TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonicalIn,
-		UMeshOpPreviewWithBackgroundCompute* AppliedPreviewIn,
-		int32 AssetIDIn, int32 UVLayerIndexIn,
-		UWorld* UnwrapWorld, UWorld* LivePreviewWorld,
-		UMaterialInterface* WorkingMaterialIn,
-		TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn,
+	bool InitializeMeshes(UToolTarget* Target, TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonicalIn,
+		UMeshOpPreviewWithBackgroundCompute* AppliedPreviewIn, int32 AssetIDIn, int32 UVLayerIndexIn, 
+		UWorld* UnwrapWorld, UWorld* LivePreviewWorld, UMaterialInterface* WorkingMaterialIn, 
+		TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn, 
 		TFunction<FVector2f(const FVector3d&)> VertPositionToUVFuncIn);
 
 	void Shutdown() {};
@@ -212,4 +212,8 @@ public:
 
 	//// UToolTarget
 	//virtual bool IsValid() const override {return false;};
+
+private:
+	void GenerateUVUnwrapMesh(const UE::Geometry::FDynamicMeshUVOverlay& UVOverlay, UE::Geometry::FDynamicMesh3& UnwrapMeshOut,
+		TFunctionRef<FVector3d(const FVector2f&)> UVToVertPosition);
 };

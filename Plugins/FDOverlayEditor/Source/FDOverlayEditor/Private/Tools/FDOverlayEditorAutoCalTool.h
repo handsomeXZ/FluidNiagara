@@ -7,24 +7,9 @@
 #include "FDOverlayEditorAutoCalTool.generated.h"
 
 class UFDOverlayMeshInput;
+class UFDOverlayEditorAutoCalProperties;
 
-struct FAppliedVertex
-{
-	FVector3f Position;
-	FVector3f Normal;
-	FVector3f UV;
-};
-struct FTriangle
-{
-	int A;
-	int B;
-	int C;
-};
-struct ExtraParams
-{
-	FIntPoint Size;
-	TRefCountPtr<IPooledRenderTarget> ExtractedTexture;
-};
+DECLARE_DELEGATE_OneParam(FOnFinishCS, UTexture2D*);
 
 /**
  * Builder for UFDOverlayEditorAutoCalTool
@@ -35,12 +20,14 @@ class FDOVERLAYEDITOR_API UFDOverlayEditorAutoCalToolBuilder : public UInteracti
 	GENERATED_BODY()
 
 public:
+
+
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
 	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
 
 	// This is a pointer so that it can be updated under the builder without
 	// having to set it in the mode after initializing targets.
-	const TObjectPtr<UFDOverlayMeshInput>* Target = nullptr;
+	const TArray<TObjectPtr<UFDOverlayMeshInput>>* Targets = nullptr;
 };
 
 // 在该框架中，你不需要自己创建UInteractiveTool的实例。
@@ -51,12 +38,29 @@ class FDOVERLAYEDITOR_API UFDOverlayEditorAutoCalTool : public UInteractiveTool
 	GENERATED_BODY()
 
 public: 
-	void SetTarget(const TObjectPtr<UFDOverlayMeshInput>& Target);
+	void SetTarget(const TArray<TObjectPtr<UFDOverlayMeshInput>>& TargetsIn);
 	virtual void Setup() override;
 	virtual void Shutdown(EToolShutdownType ShutdownType) override;
 	
+	virtual void OnTick(float DeltaTime) override;
+
+	virtual bool HasCancel() const override { return true; }
+	virtual bool HasAccept() const override { return true; }
+	virtual bool CanAccept() const override;
+
+	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
+
+	void UpdateOutputTexture(UTexture2D* OutputTexture);
+	
+	FOnFinishCS OnFinishCS;
+
+	FString GetAssetPath(FString PathFormat) const;
+
+	UTexture2D* FindOrCreate(const FString& AssetPath);
 protected:
 	UPROPERTY()
-	TObjectPtr<UFDOverlayMeshInput> Target;
+	TArray<TObjectPtr<UFDOverlayMeshInput>> Targets;
 
+	UPROPERTY()
+	TObjectPtr<UFDOverlayEditorAutoCalProperties> Settings = nullptr;
 };

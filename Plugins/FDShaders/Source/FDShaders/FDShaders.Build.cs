@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class FDOverlayEditor : ModuleRules
+public class FDShaders : ModuleRules
 {
-	public FDOverlayEditor(ReadOnlyTargetRules Target) : base(Target)
+	public FDShaders(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -27,13 +27,11 @@ public class FDOverlayEditor : ModuleRules
 			{
 				"Core",
 				// ... add other public dependencies that you statically link with here ...
-				"UnrealEd",
-                "InputCore",
-                "InteractiveToolsFramework",
-                "MeshModelingToolsExp",
-                "GeometryProcessingInterfaces",
-
-			}
+				"CoreUObject",
+                "Engine",
+                "RHI",
+                "RenderCore"
+            }
 			);
 			
 		
@@ -45,24 +43,7 @@ public class FDOverlayEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"Projects",
-				"InputCore",
-				"EditorFramework",
-				"EditorStyle",
-				"UnrealEd",
-				"LevelEditor",
-				"InteractiveToolsFramework",
-				"EditorInteractiveToolsFramework",
 				// ... add private dependencies that you statically link with here ...	
-                "EditorSubsystem",
-                "WorkspaceMenuStructure",
-                "UVEditorTools",
-                "DynamicMesh",
-				"GeometryCore",
-				"AdvancedPreviewScene",
-                "ModelingComponentsEditorOnly", // Static/skeletal mesh tool targets
-				"ModelingToolsEditorMode",
-                "ModelingComponents",
-				"FDShaders",
 			}
 			);
 		
