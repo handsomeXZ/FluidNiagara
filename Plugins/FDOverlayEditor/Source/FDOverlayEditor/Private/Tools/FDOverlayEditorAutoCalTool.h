@@ -9,7 +9,7 @@
 class UFDOverlayMeshInput;
 class UFDOverlayEditorAutoCalProperties;
 
-DECLARE_DELEGATE_OneParam(FOnFinishCS, UTexture2D*);
+
 
 /**
  * Builder for UFDOverlayEditorAutoCalTool
@@ -20,8 +20,6 @@ class FDOVERLAYEDITOR_API UFDOverlayEditorAutoCalToolBuilder : public UInteracti
 	GENERATED_BODY()
 
 public:
-
-
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
 	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
 
@@ -52,15 +50,21 @@ public:
 
 	void UpdateOutputTexture(UTexture2D* OutputTexture);
 	
+	DECLARE_DELEGATE_OneParam(FOnFinishCS, UTexture2D*);
 	FOnFinishCS OnFinishCS;
 
-	FString GetAssetPath(FString PathFormat) const;
-
-	UTexture2D* FindOrCreate(const FString& AssetPath);
 protected:
 	UPROPERTY()
 	TArray<TObjectPtr<UFDOverlayMeshInput>> Targets;
 
 	UPROPERTY()
 	TObjectPtr<UFDOverlayEditorAutoCalProperties> Settings = nullptr;
+
+private:
+	FString GetAssetPath(FString PathFormat, FString Name, int32 MaterialID) const;
+
+	UTexture2D* FindOrCreate(const FString& AssetPath);
+
+	UTexture2D* OutputTexture;
+
 };

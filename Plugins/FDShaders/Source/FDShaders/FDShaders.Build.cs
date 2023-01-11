@@ -30,7 +30,8 @@ public class FDShaders : ModuleRules
 				"CoreUObject",
                 "Engine",
                 "RHI",
-                "RenderCore"
+                "RenderCore",
+
             }
 			);
 			
@@ -44,6 +45,7 @@ public class FDShaders : ModuleRules
 				"SlateCore",
 				"Projects",
 				// ... add private dependencies that you statically link with here ...	
+				"GeometryCore",
 			}
 			);
 		

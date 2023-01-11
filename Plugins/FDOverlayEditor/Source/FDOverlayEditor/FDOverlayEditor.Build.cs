@@ -32,7 +32,7 @@ public class FDOverlayEditor : ModuleRules
                 "InteractiveToolsFramework",
                 "MeshModelingToolsExp",
                 "GeometryProcessingInterfaces",
-
+				"FDShaders",
 			}
 			);
 			
@@ -63,6 +63,7 @@ public class FDOverlayEditor : ModuleRules
 				"ModelingToolsEditorMode",
                 "ModelingComponents",
 				"FDShaders",
+				"AssetTools",
 			}
 			);
 		

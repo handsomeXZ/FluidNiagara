@@ -8,6 +8,11 @@
 #include "InteractiveToolManager.h"
 #include "Factories/Factory.h"
 #include "RendererInterface.h"
+#include "AssetToolsModule.h"
+#include "Misc\PathViews.h"
+#include "Factories/Texture2dFactoryNew.h"
+#include "Kismet\KismetMathLibrary.h"
+
 
 #include "Operators/FDOverlayEditorAutoCalOp.h"
 #include "FDAutoCalCS.h"
@@ -49,7 +54,6 @@ void UFDOverlayEditorAutoCalTool::Setup()
 
 	UContextObjectStore* ContextStore = GetToolManager()->GetContextObjectStore();
 
-	OnFinishCS.BindUObject(this, UpdateOutputTexture);
 
 	for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
 	{
@@ -64,8 +68,6 @@ void UFDOverlayEditorAutoCalTool::Setup()
 void UFDOverlayEditorAutoCalTool::Shutdown(EToolShutdownType ShutdownType)
 {
 	Settings->SaveProperties(this);
-
-	OnFinishCS.UnBind();
 
 	for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
 	{
@@ -100,21 +102,70 @@ void UFDOverlayEditorAutoCalTool::OnTick(float DeltaTime)
 
 void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
 {
-	for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
+
+	auto GetUVOffsetOrigin = [](float UVOffset, FVector3f LineOrigin, FVector3f LineDirection) {
+		FVector axis = FVector(Normalize(LineDirection));
+		FVector v = FVector(LineOrigin);
+		v.X = v.X - 10;
+		v = v - FVector(LineOrigin);
+		FVector v2 = UKismetMathLibrary::RotateAngleAxis(v, UKismetMathLibrary::DegreesToRadians(UVOffset), axis);
+		return v2 + FVector(LineOrigin);
+	};
+
+	TArray<FCurveKey> CurveKeys;
+	float RangeMin = 0, RangMax = 0;
+	if (Settings->UVCurve)
 	{
-		for (int MID = 0; MID < Target->MaxMaterialIndex; MID++)
+		for (const FRichCurveKey& key : Settings->UVCurve->FloatCurve.GetConstRefOfKeys())
 		{
-			FExtraParams ExtraParams;
-
-			FString AssetPath = GetAssetPath(Settings->AssetPathFormat, Settings->Name, MID);
-			UTexture2D* OutputTexture = FindOrCreate(AssetPath);
-			ExtraParams.OutputTexture = OutputTexture;
-
-			FFDAutoCalCSInterface::Dispatch(Target->AppliedCanonical, ExtraParams, [this](UTexture2D* OutputTexture) {
-				this->OnFinishCS.ExecuteIfBound(OutputTexture);
-				});
+			CurveKeys.Add(FCurveKey(key.Time, key.Value, key.ArriveTangent, key.LeaveTangent));
 		}
+		
+		Settings->UVCurve->FloatCurve.GetValueRange(RangeMin, RangMax);
 	}
+	else
+	{
+		CurveKeys.Add(FCurveKey(0, 0, 0, 0));
+	}
+
+	switch (Settings->LayoutType)
+	{
+	case EFDOverlayEditorAutoCalType::Line:
+		for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
+		{
+			for (int MID = 0; MID < Target->MaxMaterialIndex; MID++)
+			{
+				FExtraParams ExtraParams;
+
+				FString AssetPath = GetAssetPath(Settings->AssetPathFormat, Settings->Name, MID);
+
+				OutputTexture = FindOrCreate(AssetPath);
+
+				ExtraParams.OutputTexture = OutputTexture;
+				ExtraParams.MaterialID = MID;
+				ExtraParams.Params.GradientOrigin = Settings->LineOrigin;
+				ExtraParams.Params.GradientDir = Settings->LineDirection;
+				ExtraParams.Params.UVCurveOrigin = FVector3f(GetUVOffsetOrigin(Settings->UVOffset, Settings->LineOrigin, Settings->LineDirection));
+				ExtraParams.Params.CurveRange = RangMax - RangeMin;
+				ExtraParams.Params.GradientMax = 0;
+				ExtraParams.CurveKeys = CurveKeys;
+				ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
+
+
+				/*ExtraParams.Params.GradientOrigin*/
+				FFDAutoCalCSInterface::Dispatch(Target->AppliedCanonical, ExtraParams, [this](UTexture2D* OutputTexture) {
+					UpdateOutputTexture(OutputTexture);
+					this->OnFinishCS.ExecuteIfBound(OutputTexture);
+					});
+			}
+		}
+		break;
+	case EFDOverlayEditorAutoCalType::Point:
+		break;
+	}
+
+
+	
 	for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
 	{
 		Target->AppliedPreview->InvalidateResult();
@@ -133,11 +184,11 @@ bool UFDOverlayEditorAutoCalTool::CanAccept() const
 	return true;
 }
 
-void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(UTexture2D* OutputTexture)
+void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(UTexture2D* OutputTextureIn)
 {
-	OutputTexture->UpdateResource();
-	OutputTexture->PostEditChange();
-	OutputTexture->MarkPackageDirty();
+	OutputTextureIn->UpdateResource();
+	OutputTextureIn->PostEditChange();
+	OutputTextureIn->MarkPackageDirty();
 }
 
 FString UFDOverlayEditorAutoCalTool::GetAssetPath(FString PathFormat, FString Name, int32 MaterialID) const
@@ -160,6 +211,7 @@ UTexture2D* UFDOverlayEditorAutoCalTool::FindOrCreate(const FString& AssetPath)
 	// Create new Asset
 	IAssetTools& AssetTools = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	UFactory* NewFactory = NewObject<UFactory>(GetTransientPackage(), UTexture2DFactoryNew::StaticClass());
-	return AssetTools.CreateAsset(FString(FPathViews::GetCleanFilename(PackagePath)), FString(FPathViews::GetPath(PackagePath)), UTexture2D::StaticClass(), NewFactory);
+	UObject* ResultObject = AssetTools.CreateAsset(FString(FPathViews::GetCleanFilename(AssetPath)), FString(FPathViews::GetPath(AssetPath)), UTexture2D::StaticClass(), NewFactory);
 
+	return ResultObject ? CastChecked<UTexture2D>(ResultObject) : nullptr;
 }

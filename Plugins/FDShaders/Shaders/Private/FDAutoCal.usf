@@ -1,53 +1,51 @@
-#include "/Plugin/FDOverlayEditor/Private/BezierUtils.usf"
+#include "/Engine/Public/Platform.ush"
+#include "/Plugin/FDShaders/Private/BezierUtils.usf"
 
-struct FCurveKey
-{
-	float Time;
-	float Value;
-	float ArriveTangent;
-	float LeaveTangent;
-};
 struct FAppliedVertex
 {
-	float3 Position;
-	float3 Normal;
-	float2 UV;
+    float3 Position;
+    float3 Normal;
+    float2 UV;
 };
 struct FTriangle
 {
-	int A;
-	int B;
-	int C;
+    int A;
+    int B;
+    int C;
 };
 struct FParams
 {
-	int2 Size;
     float3 GradientOrigin;
     float3 GradientDir;
     float GradientMax;
     float3 UVCurveOrigin;
-    float MaxCurveOffset; // It is not the maximum value, but the maximum length. For example, the maximum length between -1 and 1 is 2
+    float CurveRange; // It is not the maximum value, but the maximum length. For example, the maximum length between -1 and 1 is 2
+    
 };
 StructuredBuffer<FAppliedVertex> VerticesBuffer  	: register(t0);
 StructuredBuffer<FTriangle> TrianglesBuffer  	: register(t1);
 StructuredBuffer<FCurveKey> KeyBuffer : register(t2);
 StructuredBuffer<FParams> ParamsBuffer  	: register(t3);
-RWTexture2D<float4> RWOutput : register(u0);
+RWTexture2D<float4> RDGRWTexture : register(u0);
 
 
 
 float DistancePointToLine(float3 p, float3 o, float3 dir)
 {
+    dir = normalize(dir);
     float3 v = p - o;
     float d = length(cross(v, dir));
-    return d / length(dir);
+    //return d / length(dir);
+    return d;
 }
 
 float DistancePointAlongLine(float3 p, float3 o, float3 dir)
 {
+    dir = normalize(dir);
     float3 v = p - o;
     float d = length(dot(v, dir));
-    return d / length(dir);
+    //return d / length(dir);
+    return d;
 }
 
 float3 PointAtLine(float3 p, float3 o, float3 dir)
@@ -83,14 +81,96 @@ float3 GetPixelPos(float2 Pixeluv, float2 Auv, float2 Buv, float3 A, float3 B, f
     return mul(PixelLocal, ToWorld).xzy;
 }
 
+
+float Eval(float InTime)
+{
+    uint NumKeyBuffer = 0;
+    uint CurveKeySize = 0;
+    KeyBuffer.GetDimensions(NumKeyBuffer, CurveKeySize);
+
+    float InterpVal = 0;
+
+    if (NumKeyBuffer == 0)
+    {
+		// If no KeyBuffer in curve, return the Default value.
+    }
+    else if (NumKeyBuffer < 2 || (InTime <= KeyBuffer[0].Time))
+    {
+        if (NumKeyBuffer > 1)
+        {
+            float DT = KeyBuffer[1].Time - KeyBuffer[0].Time;
+
+            if (IsNearlyZero(DT))
+            {
+                InterpVal = KeyBuffer[0].Value;
+            }
+            else
+            {
+                float DV = KeyBuffer[1].Value - KeyBuffer[0].Value;
+                float Slope = DV / DT;
+
+                InterpVal = Slope * (InTime - KeyBuffer[0].Time) + KeyBuffer[0].Value;
+            }
+        }
+        else
+        {
+			// Otherwise if constant or in a cycle or oscillate, always use the first key value
+            InterpVal = KeyBuffer[0].Value;
+        }
+    }
+    else if (InTime < KeyBuffer[NumKeyBuffer - 1].Time)
+    {
+		// perform a lower bound to get the second of the interpolation nodes
+        int first = 1;
+        int last = NumKeyBuffer - 1;
+        int count = last - first;
+
+        while (count > 0)
+        {
+            int step = count / 2;
+            int middle = first + step;
+
+            if (InTime >= KeyBuffer[middle].Time)
+            {
+                first = middle + 1;
+                count -= step + 1;
+            }
+            else
+            {
+                count = step;
+            }
+        }
+
+        InterpVal = EvalForTwoKeyBuffer(KeyBuffer[first - 1], KeyBuffer[first], InTime);
+    }
+    else
+    {
+        float DT = KeyBuffer[NumKeyBuffer - 2].Time - KeyBuffer[NumKeyBuffer - 1].Time;
+
+        if (IsNearlyZero(DT))
+        {
+            InterpVal = KeyBuffer[NumKeyBuffer - 1].Value;
+        }
+        else
+        {
+            float DV = KeyBuffer[NumKeyBuffer - 2].Value - KeyBuffer[NumKeyBuffer - 1].Value;
+            float Slope = DV / DT;
+
+            InterpVal = Slope * (InTime - KeyBuffer[NumKeyBuffer - 1].Time) + KeyBuffer[NumKeyBuffer - 1].Value;
+        }
+    }
+
+    return InterpVal;
+}
+
 [numthreads(THREADGROUPSIZE_X, THREADGROUPSIZE_Y, 1)]
 void CS(
 	uint3 GroupId : SV_GroupID,
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-    int KeyNum = 0, VertexNum = 0, TriangleNum = 0;
-    int KeySize = 0, VertexSize = 0, TriangleSize = 0;
+    uint KeyNum = 0, VertexNum = 0, TriangleNum = 0;
+    uint KeySize = 0, VertexSize = 0, TriangleSize = 0;
     float3 GradientDir = normalize(ParamsBuffer[0].GradientDir);
     float3 GradientOrigin = ParamsBuffer[0].GradientOrigin;
     
@@ -98,19 +178,19 @@ void CS(
     VerticesBuffer.GetDimensions(VertexNum, VertexSize);
     TrianglesBuffer.GetDimensions(TriangleNum, TriangleSize);
     KeyBuffer.GetDimensions(KeyNum, KeySize);
-    RWOutput[DispatchThreadId.xy] = 0;
+    RDGRWTexture[DispatchThreadId.xy] = 0;
     for (int tri = 0; tri < TriangleNum; tri++)
     {
         if (IsPointInsideTriangle(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV))
         {
-            RWOutput[DispatchThreadId.xy].w = 1;
+            RDGRWTexture[DispatchThreadId.xy].w = 1;
             float3 PixelPos = GetPixelPos(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].A].Position, VerticesBuffer[TrianglesBuffer[tri].B].Position, VerticesBuffer[TrianglesBuffer[tri].C].Position);
             
             float GradientScale = DistancePointAlongLine(PixelPos, GradientOrigin, GradientDir) / ParamsBuffer[0].GradientMax;
             // Draw UV - V
             if (GradientScale >= 0)
             {
-                RWOutput[DispatchThreadId.xy].y = GradientScale;
+                RDGRWTexture[DispatchThreadId.xy].y = GradientScale;
             }
             // Draw UV - U
             double AngleOffset = Eval(GradientScale);
@@ -123,7 +203,7 @@ void CS(
             // if < 0, -40 => 320, -370 => 710;
             AngleOffset = floor(abs(AngleOffset)) + fmod(AngleOffset, 360.0) + (abs(AngleOffset) / AngleOffset * -1 + 1) * 180;
             AngleScale += AngleOffset;
-            RWOutput[DispatchThreadId.xy].x = AngleScale / ParamsBuffer[0].MaxCurveOffset;
+            RDGRWTexture[DispatchThreadId.xy].x = AngleScale / ParamsBuffer[0].CurveRange;
             break;
         }
 
