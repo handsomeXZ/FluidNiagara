@@ -41,7 +41,7 @@ public:
 	UCurveFloat* UVCurve = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal")
-	int XYSize = 512;
+	int XYSize = 256;
 
 	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal")
 	FString Name = TEXT("OutputName");

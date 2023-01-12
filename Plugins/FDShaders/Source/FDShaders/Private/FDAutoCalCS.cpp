@@ -21,7 +21,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FCopyTextureParameters, )
 // 声明CopySrc访问FRDGTexture*
 RDG_TEXTURE_ACCESS(CopySrc, ERHIAccess::CopySrc)
 // 直接取 UTexture2D的RHI
-//RDG_TEXTURE_ACCESS(Output, ERHIAccess::CopyDest)
+RDG_TEXTURE_ACCESS(CopyDest, ERHIAccess::CopyDest)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FFDAutoCalParameters, )
@@ -156,7 +156,7 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 	GraphBuilder.QueueBufferUpload(KeyBuffer, ExtraParams.CurveKeys.GetData(), sizeof(FCurveKey) * ExtraParams.CurveKeys.Num(), ERDGInitialDataFlags::None);
 	GraphBuilder.QueueBufferUpload(ParamsBuffer, &(ExtraParams.Params), sizeof(FParams), ERDGInitialDataFlags::None);
 
-	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(ExtraParams.Size, EPixelFormat::PF_FloatRGBA, FClearValueBinding::Black, TexCreate_UAV);
+	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(ExtraParams.Size, EPixelFormat::PF_FloatRGBA, FClearValueBinding::White, TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV);
 	FRDGTextureRef RDGRWTexture = GraphBuilder.CreateTexture(Desc, TEXT("FluidDynamicOverlayOutputPooledTexture"));
 	{
 		DECLARE_GPU_STAT(FDAutoCalCS)
@@ -176,7 +176,7 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("FluidDynamicOverlayComputeShader"),
-			ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+			ERDGPassFlags::Compute,
 			ComputeShader,
 			PassParameters,
 			GroupCount
@@ -186,36 +186,43 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 	// GroomTextureBuilder.cpp - Row 215
 	// RenderGraphUtils.cpp    - Row 842
 	{
-		DECLARE_GPU_STAT(FDAutoCalCopy)
-		RDG_GPU_STAT_SCOPE(GraphBuilder, FDAutoCalCopy);
-		RDG_EVENT_SCOPE(GraphBuilder, "FluidDynamicOverlayCopyRDGToTexture2D");
-		//auto PassParameters = GraphBuilder.AllocParameters<FCopyTextureParameters>();
-		//PassParameters->CopySrc = RDGRWTexture;
-		//
-		//GraphBuilder.AddPass(
-		//	RDG_EVENT_NAME("CopyRDGToTexture2D"),
-		//	PassParameters,
-		//	ERDGPassFlags::Readback,
-		//	[RDGRWTexture, ExtraParams](FRHICommandList& RHICmdList)
-		//	{
-		//		if (ExtraParams.OutputTexture && ExtraParams.OutputTexture->GetResource() && ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI())
-		//		{
-		//			FRHICopyTextureInfo CopyInfo;
-		//			RHICmdList.CopyTexture(
-		//				RDGRWTexture->GetRHI(),
-		//				ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI(),
-		//				CopyInfo);
-		//		}
-		//	});
+	//	//DECLARE_GPU_STAT(FDAutoCalCopy)
+	//	//RDG_GPU_STAT_SCOPE(GraphBuilder, FDAutoCalCopy);
+	//	//RDG_EVENT_SCOPE(GraphBuilder, "FluidDynamicOverlayCopyRDGToTexture2D");
+	//	// 
+	//	//auto PassParameters = GraphBuilder.AllocParameters<FCopyTextureParameters>();
+	//	//PassParameters->CopySrc = RDGRWTexture;
+	//	//
+	//	//GraphBuilder.AddPass(
+	//	//	RDG_EVENT_NAME("CopyRDGToTexture2D"),
+	//	//	PassParameters,
+	//	//	ERDGPassFlags::Readback,
+	//	//	[RDGRWTexture, ExtraParams](FRHICommandList& RHICmdList)
+	//	//	{
+	//	//		if (ExtraParams.OutputTexture && ExtraParams.OutputTexture->GetResource() && ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI())
+	//	//		{
+	//	//			FRHICopyTextureInfo CopyInfo;
+	//	//			RHICmdList.CopyTexture(
+	//	//				RDGRWTexture->GetRHI(),
+	//	//				ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI(),
+	//	//				CopyInfo);
+	//	//		}
+	//	//	});
+
+
+		//TRefCountPtr<IPooledRenderTarget> RGBInputTexture = CreateRenderTarget(ExtraParams.InputTexture->GetResource()->GetTexture2DRHI(), TEXT("InputTexture"));
+		//FRDGTexture* InputTexture = GraphBuilder.RegisterExternalTexture(RGBInputTexture);
+
 		AddReadbackTexturePass(
 			GraphBuilder,
 			RDG_EVENT_NAME("CopyRDGToTexture2D"),
 			RDGRWTexture,
 			[RDGRWTexture, ExtraParams](FRHICommandListImmediate& RHICmdList)
 			{
-				if (ExtraParams.OutputTexture && ExtraParams.OutputTexture->GetResource() && ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI())
+				if (RDGRWTexture->GetRHI() && ExtraParams.OutputTexture->Source.IsValid() && ExtraParams.OutputTexture && ExtraParams.OutputTexture->GetResource() && ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI())
 				{
 					FRHICopyTextureInfo CopyInfo;
+					CopyInfo.NumMips = 1;
 					RHICmdList.CopyTexture(
 						RDGRWTexture->GetRHI(),
 						ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI(),

@@ -65,6 +65,4 @@ private:
 
 	UTexture2D* FindOrCreate(const FString& AssetPath);
 
-	UTexture2D* OutputTexture;
-
 };

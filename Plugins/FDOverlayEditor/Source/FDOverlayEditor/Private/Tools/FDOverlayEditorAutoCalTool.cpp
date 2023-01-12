@@ -12,6 +12,7 @@
 #include "Misc\PathViews.h"
 #include "Factories/Texture2dFactoryNew.h"
 #include "Kismet\KismetMathLibrary.h"
+#include "AssetRegistry\IAssetRegistry.h"
 
 
 #include "Operators/FDOverlayEditorAutoCalOp.h"
@@ -139,9 +140,8 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 
 				FString AssetPath = GetAssetPath(Settings->AssetPathFormat, Settings->Name, MID);
 
-				OutputTexture = FindOrCreate(AssetPath);
 
-				ExtraParams.OutputTexture = OutputTexture;
+				ExtraParams.OutputTexture = FindOrCreate(AssetPath);
 				ExtraParams.MaterialID = MID;
 				ExtraParams.Params.GradientOrigin = Settings->LineOrigin;
 				ExtraParams.Params.GradientDir = Settings->LineDirection;
@@ -151,13 +151,14 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 				ExtraParams.CurveKeys = CurveKeys;
 				ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
 
-
 				/*ExtraParams.Params.GradientOrigin*/
 				FFDAutoCalCSInterface::Dispatch(Target->AppliedCanonical, ExtraParams, [this](UTexture2D* OutputTexture) {
 					UpdateOutputTexture(OutputTexture);
 					this->OnFinishCS.ExecuteIfBound(OutputTexture);
 					});
+				return;
 			}
+			return;
 		}
 		break;
 	case EFDOverlayEditorAutoCalType::Point:
@@ -208,10 +209,75 @@ FString UFDOverlayEditorAutoCalTool::GetAssetPath(FString PathFormat, FString Na
 
 UTexture2D* UFDOverlayEditorAutoCalTool::FindOrCreate(const FString& AssetPath)
 {
+
+	// Find existing
+	IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
+	TArray<FAssetData> FoundAssets;
+	if (AssetRegistry->GetAssetsByPackageName(FName(AssetPath), FoundAssets))
+	{
+		if (FoundAssets.Num() > 0)
+		{
+			if (UTexture2D* ExistingOject = CastChecked<UTexture2D>(StaticLoadObject(UTexture2D::StaticClass(), nullptr, *AssetPath)))
+			{
+				return ExistingOject;
+			}
+
+			// If the above failed then the asset is not the right type, warn the user
+			FText ErrorMessage = FText::Format(
+				NSLOCTEXT("NiagarBaker", "GetOrCreateAsset_PackageExistsOfWrongType", "Could not bake asset '{0}' as package exists but is not a {1}.\nPlease delete the asset or the output to a different location."),
+				FText::FromString(AssetPath),
+				FText::FromName(UTexture2D::StaticClass()->GetFName())
+			);
+			FMessageDialog::Open(EAppMsgType::Ok, ErrorMessage);
+			return nullptr;
+		}
+	}
+
 	// Create new Asset
 	IAssetTools& AssetTools = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	UFactory* NewFactory = NewObject<UFactory>(GetTransientPackage(), UTexture2DFactoryNew::StaticClass());
 	UObject* ResultObject = AssetTools.CreateAsset(FString(FPathViews::GetCleanFilename(AssetPath)), FString(FPathViews::GetPath(AssetPath)), UTexture2D::StaticClass(), NewFactory);
+	UTexture2D* Result = ResultObject ? CastChecked<UTexture2D>(ResultObject) : nullptr;
+	
+	//UPackage* Package = CreatePackage(*AssetPath);
+	//UTexture2D* Result = NewObject<UTexture2D>(Package, *FString(TEXT("OutputTex")), RF_Public | RF_Standalone | RF_Transactional);
 
-	return ResultObject ? CastChecked<UTexture2D>(ResultObject) : nullptr;
+	if (Result)
+	{
+		FTextureFormatSettings FormatSettings;
+		FormatSettings.CompressionNone = true;
+		FormatSettings.CompressionSettings = TC_HDR;
+		FormatSettings.SRGB = false;
+		
+		TArray<FFloat16Color> NewDataFloat16Color;
+		NewDataFloat16Color.SetNumUninitialized(Settings->XYSize * Settings->XYSize, true);
+
+		Result->Source.Init(Settings->XYSize, Settings->XYSize, 1, 1, ETextureSourceFormat::TSF_RGBA16F, (uint8*)NewDataFloat16Color.GetData());
+		Result->LODGroup = TEXTUREGROUP_EffectsNotFiltered; // Mipmap filtering, no compression
+		Result->SetLayerFormatSettings(0, FormatSettings);
+		//Result->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
+
+
+
+		Result->SetPlatformData(new FTexturePlatformData());
+		Result->GetPlatformData()->SizeX = Settings->XYSize;
+		Result->GetPlatformData()->SizeY = Settings->XYSize;
+		Result->GetPlatformData()->PixelFormat = PF_FloatRGBA;
+
+		Result->DeferCompression = true; // This forces reloading data when the asset is saved
+		Result->UpdateResource();
+		Result->PostEditChange();
+		Result->MarkPackageDirty();
+
+		//uint8* OutData = Result->Source.LockMip(0);
+		//FMemory::Memzero(OutData, Settings->XYSize * Settings->XYSize * sizeof(uint32) * 2);
+		//Result->Source.UnlockMip(0);
+		//Result->DeferCompression = true; // This forces reloading data when the asset is saved
+		//Result->MarkPackageDirty();
+	}
+	
+	//check(Result->GetResource()->GetTexture2DRHI());
+	//
+
+	return Result;
 }

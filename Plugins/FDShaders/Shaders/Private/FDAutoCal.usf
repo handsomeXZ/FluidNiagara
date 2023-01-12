@@ -178,7 +178,7 @@ void CS(
     VerticesBuffer.GetDimensions(VertexNum, VertexSize);
     TrianglesBuffer.GetDimensions(TriangleNum, TriangleSize);
     KeyBuffer.GetDimensions(KeyNum, KeySize);
-    RDGRWTexture[DispatchThreadId.xy] = 0;
+    RDGRWTexture[DispatchThreadId.xy] = 1;
     for (int tri = 0; tri < TriangleNum; tri++)
     {
         if (IsPointInsideTriangle(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV))

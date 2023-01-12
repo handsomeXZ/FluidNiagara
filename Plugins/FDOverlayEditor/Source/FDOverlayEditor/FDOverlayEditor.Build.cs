@@ -64,6 +64,7 @@ public class FDOverlayEditor : ModuleRules
                 "ModelingComponents",
 				"FDShaders",
 				"AssetTools",
+				"AssetRegistry",
 			}
 			);
 		
