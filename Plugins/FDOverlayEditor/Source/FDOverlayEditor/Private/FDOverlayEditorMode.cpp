@@ -26,9 +26,16 @@
 #include "TargetInterfaces/AssetBackedTarget.h"
 #include "TargetInterfaces/DynamicMeshCommitter.h"
 #include "TargetInterfaces/DynamicMeshProvider.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/DynamicMeshSource.h"
 #include "ModelingToolTargetUtil.h"
 #include "MeshOpPreviewHelpers.h" // UMeshOpPreviewWithBackgroundCompute
 #include "ToolSetupUtil.h"
+#include "MeshDescriptionToDynamicMesh.h"
+#include "DynamicMeshToMeshDescription.h"
+#include "MeshDescription.h"
+#include "DynamicMesh\DynamicMesh3.h"
+#include "UDynamicMesh.h"
 
 // step 2: register a ToolBuilder in FFDOverlayEditorMode::Enter() below
 
@@ -299,6 +306,51 @@ void UFDOverlayEditorMode::InitializeModeContexts()
 
 }
 
+//FDynamicMesh3 UFDOverlayEditorMode::GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents)
+//{
+//	//IPersistentDynamicMeshSource* DynamicMeshSource = Cast<IPersistentDynamicMeshSource>(Target);
+//	//if (DynamicMeshSource)
+//	//{
+//	//	UDynamicMesh* DynamicMesh = DynamicMeshSource->GetDynamicMeshContainer();
+//	//	FDynamicMesh3 Mesh;
+//	//	DynamicMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh) { Mesh = ReadMesh; });
+//	//	return Mesh;
+//	//}
+//
+//	// TODO: Handle tangent computation. For now skip if tangents requested.
+//	IDynamicMeshProvider* DynamicMeshProvider = Cast<IDynamicMeshProvider>(Target);
+//	if (DynamicMeshProvider && !bWantMeshTangents)
+//	{
+//		return DynamicMeshProvider->GetDynamicMesh();
+//	}
+//	FDynamicMesh3 mesh;
+//	return mesh;
+//
+//
+//	//IMeshDescriptionProvider* MeshDescriptionProvider = Cast<IMeshDescriptionProvider>(Target);
+//	//FDynamicMesh3 Mesh(EMeshComponents::FaceGroups);
+//	//Mesh.EnableAttributes();
+//	//if (MeshDescriptionProvider)
+//	//{
+//	//	FMeshDescriptionToDynamicMesh Converter;
+//	//	if (bWantMeshTangents)
+//	//	{
+//	//		FGetMeshParameters GetMeshParams;
+//	//		GetMeshParams.bWantMeshTangents = true;
+//	//		FMeshDescription MeshDescriptionCopy = MeshDescriptionProvider->GetMeshDescriptionCopy(GetMeshParams);
+//	//		Converter.Convert(&MeshDescriptionCopy, Mesh, bWantMeshTangents);
+//	//	}
+//	//	else
+//	//	{
+//	//		Converter.Convert(MeshDescriptionProvider->GetMeshDescription(), Mesh, bWantMeshTangents);
+//	//	}
+//
+//	//	return Mesh;
+//	//}
+//
+//	//ensure(false);
+//	//return Mesh;
+//}
 
 void UFDOverlayEditorMode::InitializeTargets()
 {
@@ -317,7 +369,7 @@ void UFDOverlayEditorMode::InitializeTargets()
 		// applied canonical mesh 是应用了所有图层变化的3d网格。如果切换到不同的层，更改将保留在 applied canonical 中。
 		TSharedPtr<FDynamicMesh3> AppliedCanonical = MakeShared<FDynamicMesh3>(UE::ToolTarget::GetDynamicMeshCopy(Target));
 		AppliedCanonicalMeshes.Add(AppliedCanonical);
-
+		
 		// 创建 applied canonical 的预览版本。工具可以附加计算到这个，尽管他们必须小心，如果我们允许多个层显示一个资产，
 		// 以避免试图附加两个 Computes 到同一个预览对象(在这种情况下，一个将被抛出)
 		UMeshOpPreviewWithBackgroundCompute* AppliedPreview = NewObject<UMeshOpPreviewWithBackgroundCompute>();

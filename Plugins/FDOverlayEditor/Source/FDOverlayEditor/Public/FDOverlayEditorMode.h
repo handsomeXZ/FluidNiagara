@@ -71,7 +71,7 @@ public:
 protected:
 	void InitializeModeContexts();
 	void InitializeTargets();
-
+	//UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents = false);
 protected:
 	
 	bool bIsActive = false;
@@ -126,5 +126,5 @@ protected:
 	FDelegateHandle BeginPIEDelegateHandle;
 	FDelegateHandle EndPIEDelegateHandle;
 	FDelegateHandle CancelPIEDelegateHandle;
-	
+
 };

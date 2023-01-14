@@ -4,11 +4,14 @@
 
 #include "InteractiveTool.h"
 #include "InteractiveToolBuilder.h"
+#include "FDAutoCalCS.h"
+
 #include "FDOverlayEditorAutoCalTool.generated.h"
+
 
 class UFDOverlayMeshInput;
 class UFDOverlayEditorAutoCalProperties;
-
+class UTextureRenderTarget2D;
 
 
 /**
@@ -48,10 +51,12 @@ public:
 
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 
-	void UpdateOutputTexture(UTexture2D* OutputTexture);
+	void UpdateOutputTexture(FExtraParams& ExtraParams);
 	
-	DECLARE_DELEGATE_OneParam(FOnFinishCS, UTexture2D*);
+	DECLARE_DELEGATE_OneParam(FOnFinishCS, FExtraParams& ExtraParams);
 	FOnFinishCS OnFinishCS;
+protected:
+	void BeginBake();
 
 protected:
 	UPROPERTY()
@@ -65,4 +70,5 @@ private:
 
 	UTexture2D* FindOrCreate(const FString& AssetPath);
 
+	UTextureRenderTarget2D* BakeRenderTarget = nullptr;
 };

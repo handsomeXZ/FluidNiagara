@@ -65,6 +65,9 @@ public class FDOverlayEditor : ModuleRules
 				"FDShaders",
 				"AssetTools",
 				"AssetRegistry",
+				"MeshConversion",
+				"MeshDescription",
+				"GeometryFramework",
 			}
 			);
 		

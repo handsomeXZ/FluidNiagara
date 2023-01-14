@@ -13,10 +13,12 @@
 #include "Factories/Texture2dFactoryNew.h"
 #include "Kismet\KismetMathLibrary.h"
 #include "AssetRegistry\IAssetRegistry.h"
+#include "Engine\TextureRenderTarget2D.h"
+#include "AssetRegistry\AssetRegistryModule.h"
 
 
 #include "Operators/FDOverlayEditorAutoCalOp.h"
-#include "FDAutoCalCS.h"
+
 
 #include "FDOverlayMeshInput.h"
 
@@ -39,7 +41,7 @@ UInteractiveTool* UFDOverlayEditorAutoCalToolBuilder::BuildTool(const FToolBuild
 void UFDOverlayEditorAutoCalTool::SetTarget(const TArray<TObjectPtr<UFDOverlayMeshInput>>& TargetsIn)
 {
 	Targets = TargetsIn;
-
+	
 }
 
 
@@ -103,16 +105,19 @@ void UFDOverlayEditorAutoCalTool::OnTick(float DeltaTime)
 
 void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
 {
+	BeginBake();
 
-	auto GetUVOffsetOrigin = [](float UVOffset, FVector3f LineOrigin, FVector3f LineDirection) {
-		FVector axis = FVector(Normalize(LineDirection));
-		FVector v = FVector(LineOrigin);
-		v.X = v.X - 10;
-		v = v - FVector(LineOrigin);
-		FVector v2 = UKismetMathLibrary::RotateAngleAxis(v, UKismetMathLibrary::DegreesToRadians(UVOffset), axis);
-		return v2 + FVector(LineOrigin);
+	auto GetUVOffsetOrigin = [](const float& UVOffset, const FVector& LineOrigin, const FVector& LineDirection) {
+		FVector axis = UKismetMathLibrary::Normal(LineDirection, 0.0001);
+		UE_LOG(LogTemp, Warning, TEXT("DirAxis = %f - %f - %f"), axis.X, axis.Y, axis.Z);
+		const FVector v = FVector(-1, 0, 0);
+
+		FVector v2 = UKismetMathLibrary::RotateAngleAxis(v, UVOffset /*UKismetMathLibrary::DegreesToRadians(UVOffset)*/, axis);
+		UE_LOG(LogTemp, Warning, TEXT("Rotate v2 = %f - %f - %f"), v2.X, v2.Y, v2.Z);
+
+		return v2 * 100.0 + FVector(LineOrigin);
 	};
-
+	
 	TArray<FCurveKey> CurveKeys;
 	float RangeMin = 0, RangMax = 0;
 	if (Settings->UVCurve)
@@ -140,21 +145,21 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 
 				FString AssetPath = GetAssetPath(Settings->AssetPathFormat, Settings->Name, MID);
 
-
-				ExtraParams.OutputTexture = FindOrCreate(AssetPath);
+				ExtraParams.OutputTexture = FindOrCreate(AssetPath); /*Settings->OutputTexture;*/
+				ExtraParams.RTOutput = BakeRenderTarget;
 				ExtraParams.MaterialID = MID;
 				ExtraParams.Params.GradientOrigin = Settings->LineOrigin;
 				ExtraParams.Params.GradientDir = Settings->LineDirection;
-				ExtraParams.Params.UVCurveOrigin = FVector3f(GetUVOffsetOrigin(Settings->UVOffset, Settings->LineOrigin, Settings->LineDirection));
+				ExtraParams.Params.UVCurveOrigin = FVector3f(GetUVOffsetOrigin(Settings->UVOffset, FVector(Settings->LineOrigin), FVector(Settings->LineDirection)));
 				ExtraParams.Params.CurveRange = RangMax - RangeMin;
 				ExtraParams.Params.GradientMax = 0;
 				ExtraParams.CurveKeys = CurveKeys;
 				ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
 
 				/*ExtraParams.Params.GradientOrigin*/
-				FFDAutoCalCSInterface::Dispatch(Target->AppliedCanonical, ExtraParams, [this](UTexture2D* OutputTexture) {
-					UpdateOutputTexture(OutputTexture);
-					this->OnFinishCS.ExecuteIfBound(OutputTexture);
+				FFDAutoCalCSInterface::Dispatch(Target->AppliedCanonical, ExtraParams, [this](FExtraParams& ExtraParams) {
+					UpdateOutputTexture(ExtraParams);
+					this->OnFinishCS.ExecuteIfBound(ExtraParams);
 					});
 				return;
 			}
@@ -185,11 +190,25 @@ bool UFDOverlayEditorAutoCalTool::CanAccept() const
 	return true;
 }
 
-void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(UTexture2D* OutputTextureIn)
+void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(FExtraParams& ExtraParams)
 {
-	OutputTextureIn->UpdateResource();
-	OutputTextureIn->PostEditChange();
-	OutputTextureIn->MarkPackageDirty();
+	UObject* NewObj = nullptr;
+	FString AssetPath = GetAssetPath(Settings->AssetPathFormat, "RTOutput", 1);
+	UPackage* Package = CreatePackage(*AssetPath);
+	/*UTexture2D* Result = NewObject<UTexture2D>(Package, *FString(TEXT("OutputTex")), RF_Public | RF_Standalone | RF_Transactional);*/
+	NewObj = ExtraParams.RTOutput->ConstructTexture2D(Package, FString(FPathViews::GetCleanFilename(AssetPath)), RF_Public | RF_Standalone | RF_Transactional, CTF_Default, NULL);
+	if (NewObj)
+	{
+		// Notify the asset registry
+		FAssetRegistryModule::AssetCreated(NewObj);
+		// Mark the package dirty...
+		Package->MarkPackageDirty();
+		NewObj->MarkPackageDirty();
+	}
+	ExtraParams.OutputTexture->UpdateResource();
+	ExtraParams.OutputTexture->PostEditChange();
+	ExtraParams.OutputTexture->MarkPackageDirty();
+	UE_LOG(LogTemp, Warning, TEXT("Finish This CS And CallBack"));
 }
 
 FString UFDOverlayEditorAutoCalTool::GetAssetPath(FString PathFormat, FString Name, int32 MaterialID) const
@@ -249,11 +268,11 @@ UTexture2D* UFDOverlayEditorAutoCalTool::FindOrCreate(const FString& AssetPath)
 		FormatSettings.CompressionSettings = TC_HDR;
 		FormatSettings.SRGB = false;
 		
-		TArray<FFloat16Color> NewDataFloat16Color;
-		NewDataFloat16Color.SetNumUninitialized(Settings->XYSize * Settings->XYSize, true);
+		//TArray<FFloat16Color> NewDataFloat16Color;
+		//NewDataFloat16Color.SetNumUninitialized(Settings->XYSize * Settings->XYSize, true);
 
-		Result->Source.Init(Settings->XYSize, Settings->XYSize, 1, 1, ETextureSourceFormat::TSF_RGBA16F, (uint8*)NewDataFloat16Color.GetData());
-		Result->LODGroup = TEXTUREGROUP_EffectsNotFiltered; // Mipmap filtering, no compression
+		//Result->Source.Init(Settings->XYSize, Settings->XYSize, 1, 1, ETextureSourceFormat::TSF_RGBA16F, (uint8*)NewDataFloat16Color.GetData());
+		//Result->LODGroup = TEXTUREGROUP_EffectsNotFiltered; // Mipmap filtering, no compression
 		Result->SetLayerFormatSettings(0, FormatSettings);
 		//Result->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
 
@@ -264,10 +283,10 @@ UTexture2D* UFDOverlayEditorAutoCalTool::FindOrCreate(const FString& AssetPath)
 		Result->GetPlatformData()->SizeY = Settings->XYSize;
 		Result->GetPlatformData()->PixelFormat = PF_FloatRGBA;
 
-		Result->DeferCompression = true; // This forces reloading data when the asset is saved
-		Result->UpdateResource();
-		Result->PostEditChange();
-		Result->MarkPackageDirty();
+		//Result->DeferCompression = true; // This forces reloading data when the asset is saved
+		//Result->UpdateResource();
+		//Result->PostEditChange();
+		//Result->MarkPackageDirty();
 
 		//uint8* OutData = Result->Source.LockMip(0);
 		//FMemory::Memzero(OutData, Settings->XYSize * Settings->XYSize * sizeof(uint32) * 2);
@@ -280,4 +299,20 @@ UTexture2D* UFDOverlayEditorAutoCalTool::FindOrCreate(const FString& AssetPath)
 	//
 
 	return Result;
+}
+
+void UFDOverlayEditorAutoCalTool::BeginBake()
+{
+	if (BakeRenderTarget)
+	{
+		BakeRenderTarget->InitCustomFormat(Settings->XYSize, Settings->XYSize, PF_FloatRGBA, false);
+		return;
+	}
+
+	BakeRenderTarget = NewObject<UTextureRenderTarget2D>();
+	BakeRenderTarget->AddToRoot();
+	BakeRenderTarget->ClearColor = FLinearColor::Black;
+	BakeRenderTarget->TargetGamma = 1.0f;
+	BakeRenderTarget->InitCustomFormat(Settings->XYSize, Settings->XYSize, PF_FloatRGBA, false);
+
 }

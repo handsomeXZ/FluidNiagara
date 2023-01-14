@@ -9,6 +9,7 @@
 #include "RenderGraphUtils.h"
 #include "ShaderParameterStruct.h"
 #include "Kismet\KismetMathLibrary.h"
+#include "Engine\TextureRenderTarget2D.h"
 
 #include "DynamicMesh/DynamicMeshAttributeSet.h" //FDynamicMeshUVOverlay
 #include "DynamicMesh/DynamicMesh3.h"
@@ -67,17 +68,20 @@ void FFDAutoCalCSInterface::Dispatch_GameThread(
 	TArray<FAppliedVertex>& Vertices,
 	TArray<FTriangle>& Triangles,
 	FExtraParams& ExtraParams,
-	TFunction<void(UTexture2D* OutputTexture)> CallBack
+	TFunction<void(FExtraParams& ExtraParams)> CallBack
 )
 {
 	check(IsInGameThread());
+
+	std::atomic<bool> bDidGPUFinish(false);
+
 	ENQUEUE_RENDER_COMMAND(FDAutoCalCommand)(
-		[Vertices, Triangles, ExtraParams, CallBack](FRHICommandListImmediate& RHICmdList)
+		[Vertices, Triangles, ExtraParams, CallBack, &bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
 		{
-			Dispatch_RenderThread(RHICmdList, Vertices, Triangles, ExtraParams, CallBack);
+			Dispatch_RenderThread(RHICmdList, Vertices, Triangles, ExtraParams, CallBack, bDidGPUFinish);
 
 		});
-	//// Block thread until GPU has finished
+	// Block thread until GPU has finished
 	//std::atomic<bool> bDidGPUFinish(false);
 	//ENQUEUE_RENDER_COMMAND(ForwardGPU_FDAutoCalCommand)(
 	//	[&bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
@@ -85,33 +89,49 @@ void FFDAutoCalCSInterface::Dispatch_GameThread(
 	//		bDidGPUFinish = true;
 	//	}
 	//);
-	//while (!bDidGPUFinish)
-	//{
-	//	FPlatformProcess::Sleep(0.1e-3);
-	//}
-	//CallBack(ExtraParams.OutputTexture);
+	while (!bDidGPUFinish)
+	{
+		FPlatformProcess::Sleep(0.1e-3);
+	}
+	CallBack(ExtraParams);
 }
 
 
 void FFDAutoCalCSInterface::Dispatch(
 	const TSharedPtr<FDynamicMesh3> AppliedCanonical,
 	FExtraParams& ExtraParams,
-	TFunction<void(UTexture2D* OutputTexture)> CallBack
+	TFunction<void(FExtraParams& ExtraParams)> CallBack
 )
 {
-	int VerticesNum = AppliedCanonical->VertexCount();
+	FDynamicMeshUVOverlay* UVOverlay = AppliedCanonical->Attributes()->GetUVLayer(0);
+
+	int VerticesNum = UVOverlay->ElementCount();
 	int TrianglesNum = AppliedCanonical->TriangleCount();
 
 	TArray<FAppliedVertex> AppliedVertices;
 	AppliedVertices.Reset(VerticesNum);
 	double GradientMax = 0;
-	for (int i = 0; i < VerticesNum; i++)
+	
+	auto GetDistanceAlongLine = [](const FVector& Point, const FVector& LineOrigin, const FVector& LineDirection)
 	{
-		FAppliedVertex AppliedVertex(AppliedCanonical->GetVertex(i), AppliedCanonical->GetVertexNormal(i), AppliedCanonical->GetVertexUV(i));
-		AppliedVertices.Emplace(AppliedVertex);
+		const FVector SafeDir = LineDirection.GetSafeNormal();
+		const FVector OutClosestPoint = LineOrigin + (SafeDir * ((Point - LineOrigin) | SafeDir));
+		return (float)(OutClosestPoint - LineOrigin).Size();		// LWC_TODO: Precision loss
+	};
+
+	for (int32 ElementID = 0; ElementID < VerticesNum; ElementID++)
+	{
+		FVector2f UVElement = UVOverlay->GetElement(ElementID);
+		int32 vid = UVOverlay->GetParentVertex(ElementID);
+		FAppliedVertex vert;
+		vert.Position = FVector3f(AppliedCanonical->GetVertex(vid));
+		vert.Normal = AppliedCanonical->GetVertexNormal(vid);
+		vert.UV = FVector2f(0, 0);
+		//AppliedVertices.Emplace(FAppliedVertex(AppliedCanonical->GetVertex(i), AppliedCanonical->GetVertexNormal(i), /*AppliedCanonical->GetVertexUV(i)*/ FVector2f(0, 0)));
+		AppliedVertices.Add(vert);
 
 		// ¼ÆËã GradientMax
-		float d = UKismetMathLibrary::GetPointDistanceToLine(AppliedCanonical->GetVertex(i), FVector(ExtraParams.Params.GradientOrigin), FVector(ExtraParams.Params.GradientDir));
+		float d = GetDistanceAlongLine(FVector(vert.Position), FVector(ExtraParams.Params.GradientOrigin), FVector(ExtraParams.Params.GradientDir));
 		if (GradientMax < d)
 		{
 			GradientMax = d;
@@ -120,28 +140,49 @@ void FFDAutoCalCSInterface::Dispatch(
 	ExtraParams.Params.GradientMax = GradientMax;
 	TArray<FTriangle> Triangles;
 	Triangles.Reset(TrianglesNum);
-	for (int i = 0; i < TrianglesNum; i++)
+	float xmin = 1, ymin = 1;
+	int32 id = 0;
+	for (int32 i : AppliedCanonical->TriangleIndicesItr())
 	{
-		if (AppliedCanonical->Attributes()->GetMaterialID()->GetValue(i) == ExtraParams.MaterialID)
+		if (UVOverlay->IsSetTriangle(i))
 		{
-			FIndex3i trangle = AppliedCanonical->GetTriangle(i);
-			FTriangle Triangle(trangle.A, trangle.B, trangle.C);
-			Triangles.Emplace(Triangle);
+			if (AppliedCanonical->Attributes()->GetMaterialID()->GetValue(i) == ExtraParams.MaterialID)
+			{
+				//FIndex3i tri = AppliedCanonical->GetTriangle(i);
+				FIndex3i UVTri = UVOverlay->GetTriangle(i);
+					
+				//FTriangle Triangle(trangle.A, trangle.B, trangle.C);
+				FTriangle triangle;
+				triangle.A = UVTri.A;
+				triangle.B = UVTri.B;
+				triangle.C = UVTri.C;
+				//Triangles.Emplace(Triangle);
+				Triangles.Add(triangle);
+
+				//FIndex3i index3i = UVOverlay->GetTriangle(i);
+
+				for (int j = 0; j < 3; j++)
+				{
+					FVector2f uv = UVOverlay->GetElement(UVTri.ABC[j]);
+					AppliedVertices[/*UVOverlay->GetParentVertex(UVTri.ABC[j])*/UVTri.ABC[j]].UV = uv;
+					
+				}
+			}
 		}
+		
 	}
 
+	ExtraParams.Params.KeyNum = ExtraParams.CurveKeys.Num();
+	ExtraParams.Params.TriangleNum = Triangles.Num();
+	ExtraParams.Params.VertexNum = AppliedVertices.Num();
 
-	if (IsInRenderingThread()) {
-		Dispatch_RenderThread(GetImmediateCommandList_ForRenderCommand(), AppliedVertices, Triangles, ExtraParams, CallBack);
-	}
-	else {
-		Dispatch_GameThread(AppliedVertices, Triangles, ExtraParams, CallBack);
-	}
+	Dispatch_GameThread(AppliedVertices, Triangles, ExtraParams, CallBack);
+	
 }
 
 
 
-void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList, TArray<FAppliedVertex> Vertices, TArray<FTriangle> Triangles, FExtraParams ExtraParams, TFunction<void(UTexture2D* OutputTexture)> CallBack)
+void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList, TArray<FAppliedVertex> Vertices, TArray<FTriangle> Triangles, FExtraParams ExtraParams, TFunction<void(FExtraParams& ExtraParams)> CallBack, std::atomic<bool>& bDidGPUFinish)
 {
 	check(IsInRenderingThread());
 	FRDGBuilder GraphBuilder(RHICmdList);
@@ -156,8 +197,19 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 	GraphBuilder.QueueBufferUpload(KeyBuffer, ExtraParams.CurveKeys.GetData(), sizeof(FCurveKey) * ExtraParams.CurveKeys.Num(), ERDGInitialDataFlags::None);
 	GraphBuilder.QueueBufferUpload(ParamsBuffer, &(ExtraParams.Params), sizeof(FParams), ERDGInitialDataFlags::None);
 
-	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(ExtraParams.Size, EPixelFormat::PF_FloatRGBA, FClearValueBinding::White, TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV);
+	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(ExtraParams.Size, EPixelFormat::PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV);
 	FRDGTextureRef RDGRWTexture = GraphBuilder.CreateTexture(Desc, TEXT("FluidDynamicOverlayOutputPooledTexture"));
+
+	//UTextureRenderTarget2D* RenderTarget;
+	//FRenderTarget* RenderTargetResource = RenderTarget->GetRenderTargetResource();
+	//FTexture2DRHIRef RenderTargetRHI = RenderTargetResource->GetRenderTargetTexture();
+	//FSceneRenderTargetItem RenderTargetItem;
+	//RenderTargetItem.TargetableTexture = RenderTargetRHI;
+	//RenderTargetItem.ShaderResourceTexture = RenderTargetRHI;
+	//FPooledRenderTargetDesc RenderTargetDesc = FPooledRenderTargetDesc::Create2DDesc(FIntPoint(InputTexture->GetSizeX(), InputTexture->GetSizeY()), InputTexture->GetPixelFormat(), FClearValueBinding::None, TexCreate_None, TexCreate_ShaderResource | TexCreate_UAV, false);
+	//TRefCountPtr<IPooledRenderTarget> PooledRenderTarget;
+	//GRenderTargetPool.CreateUntrackedElement(RenderTargetDesc, PooledRenderTarget, RenderTargetItem);
+
 	{
 		DECLARE_GPU_STAT(FDAutoCalCS)
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FDAutoCalCS);
@@ -176,7 +228,7 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("FluidDynamicOverlayComputeShader"),
-			ERDGPassFlags::Compute,
+			ERDGPassFlags::AsyncCompute,
 			ComputeShader,
 			PassParameters,
 			GroupCount
@@ -185,52 +237,34 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 	// Select if the generated texture should be copy back to a CPU texture for being saved, or directly used
 	// GroomTextureBuilder.cpp - Row 215
 	// RenderGraphUtils.cpp    - Row 842
+
 	{
-	//	//DECLARE_GPU_STAT(FDAutoCalCopy)
-	//	//RDG_GPU_STAT_SCOPE(GraphBuilder, FDAutoCalCopy);
-	//	//RDG_EVENT_SCOPE(GraphBuilder, "FluidDynamicOverlayCopyRDGToTexture2D");
-	//	// 
-	//	//auto PassParameters = GraphBuilder.AllocParameters<FCopyTextureParameters>();
-	//	//PassParameters->CopySrc = RDGRWTexture;
-	//	//
-	//	//GraphBuilder.AddPass(
-	//	//	RDG_EVENT_NAME("CopyRDGToTexture2D"),
-	//	//	PassParameters,
-	//	//	ERDGPassFlags::Readback,
-	//	//	[RDGRWTexture, ExtraParams](FRHICommandList& RHICmdList)
-	//	//	{
-	//	//		if (ExtraParams.OutputTexture && ExtraParams.OutputTexture->GetResource() && ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI())
-	//	//		{
-	//	//			FRHICopyTextureInfo CopyInfo;
-	//	//			RHICmdList.CopyTexture(
-	//	//				RDGRWTexture->GetRHI(),
-	//	//				ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI(),
-	//	//				CopyInfo);
-	//	//		}
-	//	//	});
-
-
-		//TRefCountPtr<IPooledRenderTarget> RGBInputTexture = CreateRenderTarget(ExtraParams.InputTexture->GetResource()->GetTexture2DRHI(), TEXT("InputTexture"));
-		//FRDGTexture* InputTexture = GraphBuilder.RegisterExternalTexture(RGBInputTexture);
-
+	
 		AddReadbackTexturePass(
 			GraphBuilder,
 			RDG_EVENT_NAME("CopyRDGToTexture2D"),
 			RDGRWTexture,
-			[RDGRWTexture, ExtraParams](FRHICommandListImmediate& RHICmdList)
+			[RDGRWTexture, ExtraParams, &bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
 			{
-				if (RDGRWTexture->GetRHI() && ExtraParams.OutputTexture->Source.IsValid() && ExtraParams.OutputTexture && ExtraParams.OutputTexture->GetResource() && ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI())
+				if (RDGRWTexture->GetRHI()/* && ExtraParams.OutputTexture->Source.IsValid() && ExtraParams.OutputTexture && ExtraParams.OutputTexture->GetResource() && ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI()*/)
 				{
 					FRHICopyTextureInfo CopyInfo;
-					CopyInfo.NumMips = 1;
+					//CopyInfo.NumMips = 1;
 					RHICmdList.CopyTexture(
 						RDGRWTexture->GetRHI(),
-						ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI(),
+						/*ExtraParams.OutputTexture->GetResource()->GetTexture2DRHI(),*/
+						ExtraParams.RTOutput->GetRenderTargetResource()->GetRenderTargetTexture(),
 						CopyInfo);
+	
+					//TArray<FFloat16Color> ColorData;
+					//FReadSurfaceDataFlags flag;
+					//RHICmdList.ReadSurfaceFloatData(RDGRWTexture->GetRHI(), FIntRect(0, 0, ExtraParams.Size.X, ExtraParams.Size.Y), ColorData, flag);
+					//ExtraParams.OutputTexture->Source.Init(ExtraParams.Size.X, ExtraParams.Size.Y, 1, 1, ETextureSourceFormat::TSF_RGBA16F, (uint8*)ColorData.GetData());
+					//ExtraParams.OutputTexture->DeferCompression = true;
+					bDidGPUFinish = true;
 				}
 			});
 	}
-
 	GraphBuilder.Execute();
 
 	/*AsyncTask(ENamedThreads::ActualRenderingThread, []() {

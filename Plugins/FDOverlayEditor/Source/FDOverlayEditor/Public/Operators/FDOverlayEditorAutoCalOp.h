@@ -32,7 +32,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Line"))
 	FVector3f LineOrigin;
 	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Line"))
-	FVector3f LineDirection;
+	FVector3f LineDirection = FVector3f(0, 0, 1);
 
 	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal", meta = (ClampMin = "0", ClampMax = "360"))
 	float UVOffset;

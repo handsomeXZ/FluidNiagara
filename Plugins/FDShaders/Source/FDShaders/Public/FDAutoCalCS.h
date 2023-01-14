@@ -7,17 +7,15 @@ PREDECLARE_GEOMETRY(class FDynamicMesh3);
 
 struct FAppliedVertex
 {
-	FVector3d Position;
+	FVector3f Position;
 	FVector3f Normal;
 	FVector2f UV;
-	FAppliedVertex(FVector3d PositionIn, FVector3f NormalIn, FVector2f UVIn) : Position(PositionIn), Normal(NormalIn), UV(UVIn) {}
 };
 struct FTriangle
 {
-	int A;
-	int B;
-	int C;
-	FTriangle(int A, int B, int C) : A(A), B(B), C(C) {}
+	int32 A;
+	int32 B;
+	int32 C;
 };
 struct FParams
 {
@@ -26,6 +24,9 @@ struct FParams
 	float GradientMax;
 	FVector3f UVCurveOrigin;
 	float CurveRange;
+	int32 KeyNum;
+	int32 VertexNum;
+	int32 TriangleNum;
 };
 struct FCurveKey
 {
@@ -45,6 +46,7 @@ struct FExtraParams
 	FIntPoint Size;
 	UTexture2D* OutputTexture;
 	int MaterialID;
+	UTextureRenderTarget2D * RTOutput;
 };
 
 
@@ -57,7 +59,8 @@ public:
 		TArray<FAppliedVertex> Vertices,
 		TArray<FTriangle> Triangles,
 		FExtraParams ExtraParams,
-		TFunction<void(UTexture2D* OutputTexture)> CallBack
+		TFunction<void(FExtraParams& ExtraParams)> CallBack,
+		std::atomic<bool>& bDidGPUFinish
 	);
 
 	// Executes this shader on the render thread from the game thread via EnqueueRenderThreadCommand
@@ -65,13 +68,13 @@ public:
 		TArray<FAppliedVertex>& Vertices,
 		TArray<FTriangle>& Triangles,
 		FExtraParams& ExtraParams,
-		TFunction<void(UTexture2D* OutputTexture)> CallBack
+		TFunction<void(FExtraParams& ExtraParams)> CallBack
 	);
 
 	// Dispatches this shader. Can be called from any thread
 	static void Dispatch(
 		const TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonical,
 		FExtraParams& ExtraParams,
-		TFunction<void(UTexture2D* OutputTexture)> CallBack
+		TFunction<void(FExtraParams& ExtraParams)> CallBack
 	);
 };
