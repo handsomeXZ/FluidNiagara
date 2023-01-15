@@ -7,7 +7,7 @@
 #include "DynamicMesh/DynamicMeshAttributeSet.h" // FDynamicMeshUVOverlay
 #include "ToolTargets/ToolTarget.h"
 #include "VectorTypes.h"
-
+#include "TargetInterfaces\MaterialProvider.h"
 #include "GeometryBase.h"
 
 #include "FDOverlayMeshInput.generated.h"
@@ -63,6 +63,7 @@ public:
 	UPROPERTY()
 	TObjectPtr<UMeshElementsVisualizer> WireframeDisplay = nullptr;
 
+
 	// OnCanonicalModified 广播信息。如果有一天我们需要的话，这会增加更多的信息。
 	struct FCanonicalModifiedInfo
 	{
@@ -96,9 +97,11 @@ public:
 
 	bool InitializeMeshes(UToolTarget* Target, TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonicalIn,
 		UMeshOpPreviewWithBackgroundCompute* AppliedPreviewIn, int32 AssetIDIn, int32 UVLayerIndexIn, 
-		UWorld* UnwrapWorld, UWorld* LivePreviewWorld, UMaterialInterface* WorkingMaterialIn, 
+		UWorld* UnwrapWorld, UWorld* LivePreviewWorld, UMaterialInterface* WorkingMaterialIn, UMaterialInterface* DefaultBakeMaterialInterfaceIn,
 		TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn, 
 		TFunction<FVector2f(const FVector3d&)> VertPositionToUVFuncIn);
+
+	void ShowToMesh(const UTexture2D* BakedSource);
 
 	void Shutdown() {};
 
@@ -216,4 +219,11 @@ public:
 private:
 	void GenerateUVUnwrapMesh(const UE::Geometry::FDynamicMeshUVOverlay& UVOverlay, UE::Geometry::FDynamicMesh3& UnwrapMeshOut,
 		TFunctionRef<FVector3d(const FVector2f&)> UVToVertPosition);
+
+private:
+	// Material
+	UMaterialInterface* DefaultWorkingMaterial;
+	UMaterialInterface* DefaultBakeMaterialInterface;
+	FComponentMaterialSet PrevMaterialSet;
+	FComponentMaterialSet BakeMaterialSet;
 };

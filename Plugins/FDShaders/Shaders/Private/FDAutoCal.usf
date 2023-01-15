@@ -65,11 +65,15 @@ bool IsPointInsideTriangle(float2 P, float2 A, float2 B, float2 C)
     return (u >= 0.0f) && (v >= 0.0f) && (w >= 0.0f) && (u <= 1.0f) && (v <= 1.0f) && (w <= 1.0f);
 }
 
-float3 GetPixelPos(float2 Pixeluv, float2 Auv, float2 Buv, float2 Cuv, float3 A, float3 B, float3 C)
+float3 GetPixelPos(float2 Pixeluv, float2 Auv, float2 Buv, float2 Cuv, float3 A, float3 B, float3 C, float2 UVScale)
 {
+    Pixeluv = Pixeluv * UVScale;
+    Auv = Auv * UVScale;
+    Buv = Buv * UVScale;
+    Cuv = Cuv * UVScale;
     float3 w = normalize(cross(B - A, C - A));
-    float3 u = normalize(float3(B - A));
-    float3 v = cross(u, w);
+    float3 v = normalize(float3(B - A));
+    float3 u = cross(v, w);
     
     float4x4 ToWorld = float4x4(u.x, u.y, u.z, 0,
                                 v.x, v.y, v.z, 0,
@@ -77,9 +81,9 @@ float3 GetPixelPos(float2 Pixeluv, float2 Auv, float2 Buv, float2 Cuv, float3 A,
                                 A.x, A.y, A.z, 1);
     // 需要判断 pixel 在 AB向量的哪一侧
     //float isLeft =  length(normalize(cross(float3(Pixeluv - Auv, 0), float3(Buv - Auv, 0))) + w) - 1;
-    float Pu = dot(Pixeluv - Auv, normalize(Buv - Auv));
+    float Pv = dot(Pixeluv - Auv, normalize(Buv - Auv));
     float3 uvNormal = cross(normalize(float3(Buv, 0) - float3(Auv, 0)), normalize(float3(Cuv, 0) - float3(Auv, 0)));
-    float Pv = dot(float3(Pixeluv - Auv, 0), normalize(cross(normalize(float3(Buv, 0) - float3(Auv, 0)), normalize(uvNormal))));
+    float Pu = dot(float3(Pixeluv - Auv, 0), normalize(cross(normalize(float3(Buv, 0) - float3(Auv, 0)), normalize(uvNormal))));
     //DistancePointToLine(float3(Pixeluv, 0), float3(Auv, 0), float3(Buv - Auv, 0)) * isLeft;
     float4 PixelLocal = float4(Pu, Pv, 0, 1);
     return mul(PixelLocal, ToWorld).xyz;
@@ -187,13 +191,11 @@ void CS(
         if (IsPointInsideTriangle(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV))
         {
             RDGRWTexture[DispatchThreadId.xy].w = 1;
-            float3 PixelPos = GetPixelPos(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV, VerticesBuffer[TrianglesBuffer[tri].A].Position, VerticesBuffer[TrianglesBuffer[tri].B].Position, VerticesBuffer[TrianglesBuffer[tri].C].Position);
+            float3 PixelPos = GetPixelPos(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV, 
+            VerticesBuffer[TrianglesBuffer[tri].A].Position, VerticesBuffer[TrianglesBuffer[tri].B].Position, VerticesBuffer[TrianglesBuffer[tri].C].Position, 100);
             
             float GradientScale = DistancePointAlongLine(PixelPos, GradientOrigin, GradientDir) / ParamsBuffer[0].GradientMax;
-            if (PixelPos.z < 100)
-            {
-                //break;
-            }
+
             // Draw UV - V
             if (GradientScale >= 0)
             {

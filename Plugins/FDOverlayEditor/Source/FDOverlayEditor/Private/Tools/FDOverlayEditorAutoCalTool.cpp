@@ -34,7 +34,7 @@ UInteractiveTool* UFDOverlayEditorAutoCalToolBuilder::BuildTool(const FToolBuild
 {
 	UFDOverlayEditorAutoCalTool* NewTool = NewObject<UFDOverlayEditorAutoCalTool>(SceneState.ToolManager);
 	NewTool->SetTarget(*Targets);
-
+	
 	return NewTool;
 }
 
@@ -107,6 +107,8 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 {
 	BeginBake();
 
+
+
 	auto GetUVOffsetOrigin = [](const float& UVOffset, const FVector& LineOrigin, const FVector& LineDirection) {
 		FVector axis = UKismetMathLibrary::Normal(LineDirection, 0.0001);
 		UE_LOG(LogTemp, Warning, TEXT("DirAxis = %f - %f - %f"), axis.X, axis.Y, axis.Z);
@@ -139,7 +141,7 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 	case EFDOverlayEditorAutoCalType::Line:
 		for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
 		{
-			for (int MID = 0; MID < Target->MaxMaterialIndex; MID++)
+			for (int MID = 0; MID <= Target->MaxMaterialIndex; MID++)
 			{
 				FExtraParams ExtraParams;
 
@@ -161,6 +163,7 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 					UpdateOutputTexture(ExtraParams);
 					this->OnFinishCS.ExecuteIfBound(ExtraParams);
 					});
+
 				return;
 			}
 			return;
@@ -192,8 +195,8 @@ bool UFDOverlayEditorAutoCalTool::CanAccept() const
 
 void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(FExtraParams& ExtraParams)
 {
-	UObject* NewObj = nullptr;
-	FString AssetPath = GetAssetPath(Settings->AssetPathFormat, "RTOutput", 1);
+	UTexture2D* NewObj = nullptr;
+	FString AssetPath = GetAssetPath(Settings->AssetPathFormat, "RTOutput", ExtraParams.MaterialID);
 	UPackage* Package = CreatePackage(*AssetPath);
 	/*UTexture2D* Result = NewObject<UTexture2D>(Package, *FString(TEXT("OutputTex")), RF_Public | RF_Standalone | RF_Transactional);*/
 	NewObj = ExtraParams.RTOutput->ConstructTexture2D(Package, FString(FPathViews::GetCleanFilename(AssetPath)), RF_Public | RF_Standalone | RF_Transactional, CTF_Default, NULL);
@@ -208,6 +211,12 @@ void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(FExtraParams& ExtraParams)
 	ExtraParams.OutputTexture->UpdateResource();
 	ExtraParams.OutputTexture->PostEditChange();
 	ExtraParams.OutputTexture->MarkPackageDirty();
+
+	for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
+	{
+		Target->ShowToMesh(NewObj);
+	}
+
 	UE_LOG(LogTemp, Warning, TEXT("Finish This CS And CallBack"));
 }
 

@@ -71,6 +71,7 @@ public:
 protected:
 	void InitializeModeContexts();
 	void InitializeTargets();
+
 	//UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents = false);
 protected:
 	
@@ -126,5 +127,5 @@ protected:
 	FDelegateHandle BeginPIEDelegateHandle;
 	FDelegateHandle EndPIEDelegateHandle;
 	FDelegateHandle CancelPIEDelegateHandle;
-
+	UMaterialInterface* DefaultBakeMaterialInterface = nullptr;
 };

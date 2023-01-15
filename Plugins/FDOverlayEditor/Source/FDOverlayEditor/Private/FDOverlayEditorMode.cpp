@@ -36,6 +36,8 @@
 #include "MeshDescription.h"
 #include "DynamicMesh\DynamicMesh3.h"
 #include "UDynamicMesh.h"
+#include "UObject\ConstructorHelpers.h"
+
 
 // step 2: register a ToolBuilder in FFDOverlayEditorMode::Enter() below
 
@@ -116,6 +118,15 @@ UFDOverlayEditorMode::UFDOverlayEditorMode()
 		LOCTEXT("ModeName", "FDOverlay"),
 		FSlateIcon(),
 		false);
+	struct FConstructorStatics
+	{
+		ConstructorHelpers::FObjectFinder<UMaterial> MaterialAsset;
+		FConstructorStatics()
+			:MaterialAsset(TEXT("Material'/FDOverlayEditor/M_Default.M_Default'")) {}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	DefaultBakeMaterialInterface = ConstructorStatics.MaterialAsset.Object;
 }
 
 
@@ -376,9 +387,10 @@ void UFDOverlayEditorMode::InitializeTargets()
 		AppliedPreview->Setup(LivePreviewWorld);
 		AppliedPreview->PreviewMesh->UpdatePreview(AppliedCanonical.Get());
 
-		FComponentMaterialSet MaterialSet = UE::ToolTarget::GetMaterialSet(Target);
-		AppliedPreview->ConfigureMaterials(MaterialSet.Materials,
-			ToolSetupUtil::GetDefaultWorkingMaterial(GetToolManager()));
+		//FComponentMaterialSet MaterialSet = UE::ToolTarget::GetMaterialSet(Target);
+
+		//AppliedPreview->ConfigureMaterials(MaterialSet.Materials,
+		//	ToolSetupUtil::GetDefaultWorkingMaterial(GetToolManager()));
 		AppliedPreviews.Add(AppliedPreview);
 	}
 
@@ -396,7 +408,7 @@ void UFDOverlayEditorMode::InitializeTargets()
 
 		if (!ToolInputObject->InitializeMeshes(ToolTargets[AssetID], AppliedCanonicalMeshes[AssetID],
 			AppliedPreviews[AssetID], AssetID, DefaultUVLayerIndex,
-			GetWorld(), LivePreviewWorld, ToolSetupUtil::GetDefaultWorkingMaterial(GetToolManager()),
+			GetWorld(), LivePreviewWorld, ToolSetupUtil::GetDefaultWorkingMaterial(GetToolManager()), DefaultBakeMaterialInterface, 
 			FUVEditorUXSettings::UVToVertPosition, FUVEditorUXSettings::VertPositionToUV))
 		{
 			return;
