@@ -47,7 +47,7 @@ public:
 	FString Name = TEXT("OutputName");
 
 	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal")
-	FString AssetPathFormat = TEXT("{AssetFolder}/{AssetName}_Texture2D_{OutputName}_{MaterialID}");
+	FString AssetPathFormat = TEXT("{AssetFolder}/{AssetName}_Texture2D_{OutputName}_{MIDNum}");
 
 };
 

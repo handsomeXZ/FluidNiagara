@@ -13,9 +13,9 @@
 #include "Factories/Texture2dFactoryNew.h"
 #include "Kismet\KismetMathLibrary.h"
 #include "AssetRegistry\IAssetRegistry.h"
-#include "Engine\TextureRenderTarget2D.h"
+#include "Engine\TextureRenderTarget2DArray.h"
 #include "AssetRegistry\AssetRegistryModule.h"
-
+#include "Engine\Texture2DArray.h"
 
 #include "Operators/FDOverlayEditorAutoCalOp.h"
 
@@ -103,12 +103,130 @@ void UFDOverlayEditorAutoCalTool::OnTick(float DeltaTime)
 	}
 }
 
-void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
+void UFDOverlayEditorAutoCalTool::InitializeCurve()
 {
-	BeginBake();
+	float RangeMin = 0, RangMax = 0;
+	if (Settings->UVCurve)
+	{
+		CurveKeys.Empty(Settings->UVCurve->FloatCurve.GetNumKeys());
+		for (const FRichCurveKey& key : Settings->UVCurve->FloatCurve.GetConstRefOfKeys())
+		{
+			CurveKeys.Add(FCurveKey(key.Time, key.Value, key.ArriveTangent, key.LeaveTangent));
+		}
+
+		Settings->UVCurve->FloatCurve.GetValueRange(RangeMin, RangMax);
+	}
+	else
+	{
+		CurveKeys.Add(FCurveKey(0, 0, 0, 0));
+	}
+
+	CurveRange = RangMax - RangeMin;
+}
+
+void UFDOverlayEditorAutoCalTool::InitializeMeshResource(const TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonical,
+	TArray<FAppliedVertex>& AppliedVertices, TArray<FTriangle>& Triangles, FExtraParams& ExtraParams)
+{
+	FDynamicMeshUVOverlay* UVOverlay = AppliedCanonical->Attributes()->GetUVLayer(0);
+
+	int VerticesNum = UVOverlay->ElementCount();
+	int TrianglesNum = AppliedCanonical->TriangleCount();
+
+	AppliedVertices.Reset(VerticesNum);
+	double GradientMax = 0;
+
+	auto GetDistanceAlongLine = [](const FVector& Point, const FVector& LineOrigin, const FVector& LineDirection)
+	{
+		const FVector SafeDir = LineDirection.GetSafeNormal();
+		const FVector OutClosestPoint = LineOrigin + (SafeDir * ((Point - LineOrigin) | SafeDir));
+		return (float)(OutClosestPoint - LineOrigin).Size();		// LWC_TODO: Precision loss
+	};
+
+	for (int32 ElementID = 0; ElementID < VerticesNum; ElementID++)
+	{
+		FVector2f UVElement = UVOverlay->GetElement(ElementID);
+		int32 vid = UVOverlay->GetParentVertex(ElementID);
+		FAppliedVertex vert;
+		vert.Position = FVector3f(AppliedCanonical->GetVertex(vid));
+		vert.Normal = AppliedCanonical->GetVertexNormal(vid);
+		vert.UV = FVector2f(0, 0);
+		//AppliedVertices.Emplace(FAppliedVertex(AppliedCanonical->GetVertex(i), AppliedCanonical->GetVertexNormal(i), /*AppliedCanonical->GetVertexUV(i)*/ FVector2f(0, 0)));
+		AppliedVertices.Add(vert);
+
+		// º∆À„ GradientMax
+		float d = GetDistanceAlongLine(FVector(vert.Position), FVector(ExtraParams.Params.GradientOrigin), FVector(ExtraParams.Params.GradientDir));
+		if (GradientMax < d)
+		{
+			GradientMax = d;
+		}
+	}
 
 
+	Triangles.Reset(TrianglesNum);
+	float xmin = 1, ymin = 1;
+	int32 id = 0;
+	for (int32 i : AppliedCanonical->TriangleIndicesItr())
+	{
+		if (UVOverlay->IsSetTriangle(i))
+		{
+			//FIndex3i tri = AppliedCanonical->GetTriangle(i);
+			FIndex3i UVTri = UVOverlay->GetTriangle(i);
 
+			//FTriangle Triangle(trangle.A, trangle.B, trangle.C);
+			FTriangle triangle;
+			triangle.A = UVTri.A;
+			triangle.B = UVTri.B;
+			triangle.C = UVTri.C;
+			triangle.MID = AppliedCanonical->Attributes()->GetMaterialID()->GetValue(i);
+			//Triangles.Emplace(Triangle);
+			Triangles.Add(triangle);
+
+			//FIndex3i index3i = UVOverlay->GetTriangle(i);
+
+			for (int j = 0; j < 3; j++)
+			{
+				FVector2f uv = UVOverlay->GetElement(UVTri.ABC[j]);
+				AppliedVertices[/*UVOverlay->GetParentVertex(UVTri.ABC[j])*/UVTri.ABC[j]].UV = uv;
+
+			}
+		}
+
+	}
+
+	ExtraParams.Params.GradientMax = GradientMax;
+	ExtraParams.Params.TriangleNum = Triangles.Num();
+	ExtraParams.Params.VertexNum = AppliedVertices.Num();
+}
+
+void UFDOverlayEditorAutoCalTool::InitializeBakePass(int32 MIDNum)
+{
+	if (BakeBuffer.Num() >= MIDNum)
+	{
+		for (UTextureRenderTarget2DArray* BakeRT : BakeBuffer)
+		{
+			BakeRT->Init(Settings->XYSize, Settings->XYSize, MIDNum, PF_FloatRGBA);
+		}
+		return;
+	}
+	BakeBuffer.Reset(MIDNum);
+	//BakeRenderTarget = NewObject<UTextureRenderTarget2D>();
+	//BakeRenderTarget->AddToRoot();
+	//BakeRenderTarget->ClearColor = FLinearColor::Black;
+	//BakeRenderTarget->TargetGamma = 1.0f;
+	//BakeRenderTarget->InitCustomFormat(Settings->XYSize, Settings->XYSize, PF_FloatRGBA, false);
+
+	UTextureRenderTarget2DArray* RTbuffer = NewObject<UTextureRenderTarget2DArray>();
+	RTbuffer->AddToRoot();
+	RTbuffer->ClearColor = FLinearColor::Black;
+	RTbuffer->TargetGamma = 1.0f;
+
+	RTbuffer->Init(Settings->XYSize, Settings->XYSize, MIDNum, PF_FloatRGBA);
+	BakeBuffer.Add(RTbuffer);
+
+}
+
+void UFDOverlayEditorAutoCalTool::AddBakePass(TObjectPtr<UFDOverlayMeshInput> Target, int TargetID)
+{
 	auto GetUVOffsetOrigin = [](const float& UVOffset, const FVector& LineOrigin, const FVector& LineDirection) {
 		FVector axis = UKismetMathLibrary::Normal(LineDirection, 0.0001);
 		UE_LOG(LogTemp, Warning, TEXT("DirAxis = %f - %f - %f"), axis.X, axis.Y, axis.Z);
@@ -119,54 +237,48 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 
 		return v2 * 100.0 + FVector(LineOrigin);
 	};
-	
-	TArray<FCurveKey> CurveKeys;
-	float RangeMin = 0, RangMax = 0;
-	if (Settings->UVCurve)
-	{
-		for (const FRichCurveKey& key : Settings->UVCurve->FloatCurve.GetConstRefOfKeys())
-		{
-			CurveKeys.Add(FCurveKey(key.Time, key.Value, key.ArriveTangent, key.LeaveTangent));
-		}
-		
-		Settings->UVCurve->FloatCurve.GetValueRange(RangeMin, RangMax);
-	}
-	else
-	{
-		CurveKeys.Add(FCurveKey(0, 0, 0, 0));
-	}
+
+
+	FExtraParams ExtraParams;
+
+	//FString AssetPath = GetAssetPath(Settings->AssetPathFormat, Settings->Name, MID);
+	//ExtraParams.OutputTexture = FindOrCreate(AssetPath);
+
+	ExtraParams.BakeBuffer = BakeBuffer[TargetID];
+	ExtraParams.MIDNum = Target->MaxMaterialIndex + 1;
+	ExtraParams.TargetID = TargetID;
+	ExtraParams.Params.GradientOrigin = Settings->LineOrigin;
+	ExtraParams.Params.GradientDir = Settings->LineDirection;
+	ExtraParams.Params.UVCurveOrigin = FVector3f(GetUVOffsetOrigin(Settings->UVOffset, FVector(Settings->LineOrigin), FVector(Settings->LineDirection)));
+	ExtraParams.Params.CurveRange = CurveRange;
+	ExtraParams.Params.GradientMax = 0;
+	ExtraParams.Params.KeyNum = CurveKeys.Num();
+	ExtraParams.CurveKeys = CurveKeys;
+	ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
+
+	TArray<FAppliedVertex> AppliedVertices;
+	TArray<FTriangle> Triangles;
+
+	InitializeMeshResource(Target->AppliedCanonical, AppliedVertices, Triangles, ExtraParams);
+
+	FFDAutoCalCSInterface::Dispatch(MoveTemp(AppliedVertices), MoveTemp(Triangles), ExtraParams, [this](FExtraParams& ExtraParams) {
+		UpdateOutputTexture(ExtraParams);
+		this->OnFinishCS.ExecuteIfBound(ExtraParams);
+		});
+}
+
+void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
+{	
+	InitializeCurve();
 
 	switch (Settings->LayoutType)
 	{
 	case EFDOverlayEditorAutoCalType::Line:
-		for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
+		for (int TargetID = 0; TargetID < Targets.Num(); TargetID++)
 		{
-			for (int MID = 0; MID <= Target->MaxMaterialIndex; MID++)
-			{
-				FExtraParams ExtraParams;
-
-				FString AssetPath = GetAssetPath(Settings->AssetPathFormat, Settings->Name, MID);
-
-				ExtraParams.OutputTexture = FindOrCreate(AssetPath); /*Settings->OutputTexture;*/
-				ExtraParams.RTOutput = BakeRenderTarget;
-				ExtraParams.MaterialID = MID;
-				ExtraParams.Params.GradientOrigin = Settings->LineOrigin;
-				ExtraParams.Params.GradientDir = Settings->LineDirection;
-				ExtraParams.Params.UVCurveOrigin = FVector3f(GetUVOffsetOrigin(Settings->UVOffset, FVector(Settings->LineOrigin), FVector(Settings->LineDirection)));
-				ExtraParams.Params.CurveRange = RangMax - RangeMin;
-				ExtraParams.Params.GradientMax = 0;
-				ExtraParams.CurveKeys = CurveKeys;
-				ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
-
-				/*ExtraParams.Params.GradientOrigin*/
-				FFDAutoCalCSInterface::Dispatch(Target->AppliedCanonical, ExtraParams, [this](FExtraParams& ExtraParams) {
-					UpdateOutputTexture(ExtraParams);
-					this->OnFinishCS.ExecuteIfBound(ExtraParams);
-					});
-
-				return;
-			}
-			return;
+			TObjectPtr<UFDOverlayMeshInput> Target = Targets[TargetID];
+			InitializeBakePass(Target->MaxMaterialIndex + 1);
+			AddBakePass(Target, TargetID);
 		}
 		break;
 	case EFDOverlayEditorAutoCalType::Point:
@@ -195,27 +307,26 @@ bool UFDOverlayEditorAutoCalTool::CanAccept() const
 
 void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(FExtraParams& ExtraParams)
 {
-	UTexture2D* NewObj = nullptr;
-	FString AssetPath = GetAssetPath(Settings->AssetPathFormat, "RTOutput", ExtraParams.MaterialID);
+	UTexture2DArray* NewObj = nullptr;
+	FString AssetPath = GetAssetPath(Settings->AssetPathFormat, TEXT("FDOverlayArray"), ExtraParams.TargetID);
+
 	UPackage* Package = CreatePackage(*AssetPath);
 	/*UTexture2D* Result = NewObject<UTexture2D>(Package, *FString(TEXT("OutputTex")), RF_Public | RF_Standalone | RF_Transactional);*/
-	NewObj = ExtraParams.RTOutput->ConstructTexture2D(Package, FString(FPathViews::GetCleanFilename(AssetPath)), RF_Public | RF_Standalone | RF_Transactional, CTF_Default, NULL);
+	NewObj = ExtraParams.BakeBuffer->ConstructTexture2DArray(Package, FString(FPathViews::GetCleanFilename(AssetPath)), RF_Public | RF_Standalone | RF_Transactional);
 	if (NewObj)
 	{
 		// Notify the asset registry
-		FAssetRegistryModule::AssetCreated(NewObj);
+		FAssetRegistryModule::AssetCreated((UObject*)NewObj);
 		// Mark the package dirty...
 		Package->MarkPackageDirty();
 		NewObj->MarkPackageDirty();
 	}
-	ExtraParams.OutputTexture->UpdateResource();
-	ExtraParams.OutputTexture->PostEditChange();
-	ExtraParams.OutputTexture->MarkPackageDirty();
+	//ExtraParams.OutputTexture->UpdateResource();
+	//ExtraParams.OutputTexture->PostEditChange();
+	//ExtraParams.OutputTexture->MarkPackageDirty();
+	
 
-	for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
-	{
-		Target->ShowToMesh(NewObj);
-	}
+	Targets[ExtraParams.TargetID]->ShowToMesh(NewObj);
 
 	UE_LOG(LogTemp, Warning, TEXT("Finish This CS And CallBack"));
 }
@@ -228,7 +339,7 @@ FString UFDOverlayEditorAutoCalTool::GetAssetPath(FString PathFormat, FString Na
 		{TEXT("AssetFolder"),	TEXT("/Game")},
 		{TEXT("AssetName"),		TEXT("FDOverlay")},
 		{TEXT("OutputName"),	Name},
-		{TEXT("MaterialID"),	FString::Printf(TEXT("%03d"), MaterialID)},
+		{TEXT("MIDNum"),	FString::Printf(TEXT("%03d"), MaterialID)},
 	};
 	FString AssetPath = FString::Format(*PathFormat, PathFormatArgs);
 	AssetPath.ReplaceInline(TEXT("//"), TEXT("/"));
@@ -310,18 +421,3 @@ UTexture2D* UFDOverlayEditorAutoCalTool::FindOrCreate(const FString& AssetPath)
 	return Result;
 }
 
-void UFDOverlayEditorAutoCalTool::BeginBake()
-{
-	if (BakeRenderTarget)
-	{
-		BakeRenderTarget->InitCustomFormat(Settings->XYSize, Settings->XYSize, PF_FloatRGBA, false);
-		return;
-	}
-
-	BakeRenderTarget = NewObject<UTextureRenderTarget2D>();
-	BakeRenderTarget->AddToRoot();
-	BakeRenderTarget->ClearColor = FLinearColor::Black;
-	BakeRenderTarget->TargetGamma = 1.0f;
-	BakeRenderTarget->InitCustomFormat(Settings->XYSize, Settings->XYSize, PF_FloatRGBA, false);
-
-}

@@ -6,6 +6,7 @@
 #include "DynamicMesh/DynamicMeshAttributeSet.h" //FDynamicMeshUVOverlay
 #include "GeometryBase.h"
 #include "Materials\MaterialInstanceDynamic.h"
+#include "Engine\Texture2DArray.h"
 
 using namespace UE::Geometry;
 
@@ -131,15 +132,18 @@ void UFDOverlayMeshInput::GenerateUVUnwrapMesh(const FDynamicMeshUVOverlay& UVOv
 	UnwrapMeshOut.EndUnsafeTrianglesInsert();
 }
 
-void UFDOverlayMeshInput::ShowToMesh(const UTexture2D* BakedSource)
+void UFDOverlayMeshInput::ShowToMesh(const UTexture2DArray* BakedSource)
 {
-	for (UMaterialInterface* MIDynamic : BakeMaterialSet.Materials)
+	for (int Mid = 0; Mid < BakeMaterialSet.Materials.Num(); Mid++)
 	{
-		((UMaterialInstanceDynamic*)MIDynamic)->SetTextureParameterValue(FName(TEXT("Input")), (UTexture*)BakedSource);
+		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeMaterialSet.Materials[Mid];
+		MIDynamic->SetTextureParameterValue(FName(TEXT("Input")), (UTexture*)BakedSource);
+		MIDynamic->SetScalarParameterValue(FName(TEXT("MID")), Mid);
+		UE_LOG(LogTemp, Warning, TEXT("Change DMI Success %d"), Mid);
 	}
 	AppliedPreview->ConfigureMaterials(BakeMaterialSet.Materials, DefaultWorkingMaterial);
 	UnwrapPreview->ConfigureMaterials(BakeMaterialSet.Materials, DefaultWorkingMaterial);
 
-	UE_LOG(LogTemp, Warning, TEXT("Change DMI Success %d"), BakeMaterialSet.Materials.Num());
+	
 }
 

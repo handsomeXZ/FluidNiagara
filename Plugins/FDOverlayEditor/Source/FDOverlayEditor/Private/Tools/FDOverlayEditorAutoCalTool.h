@@ -5,14 +5,15 @@
 #include "InteractiveTool.h"
 #include "InteractiveToolBuilder.h"
 #include "FDAutoCalCS.h"
+#include "GeometryBase.h"
 
 #include "FDOverlayEditorAutoCalTool.generated.h"
 
 
 class UFDOverlayMeshInput;
 class UFDOverlayEditorAutoCalProperties;
-class UTextureRenderTarget2D;
-
+class UTextureRenderTarget2DArray;
+PREDECLARE_GEOMETRY(class FDynamicMesh3);
 
 /**
  * Builder for UFDOverlayEditorAutoCalTool
@@ -56,8 +57,11 @@ public:
 	DECLARE_DELEGATE_OneParam(FOnFinishCS, FExtraParams& ExtraParams);
 	FOnFinishCS OnFinishCS;
 protected:
-	void BeginBake();
-
+	void InitializeCurve();
+	void InitializeMeshResource(const TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonical, TArray<FAppliedVertex>& AppliedVertices, 
+	TArray<FTriangle>& Triangles, FExtraParams& ExtraParams);
+	void InitializeBakePass(int32 MIDNum);
+	void AddBakePass(TObjectPtr<UFDOverlayMeshInput> Target, int TargetID);
 protected:
 	UPROPERTY()
 	TArray<TObjectPtr<UFDOverlayMeshInput>> Targets;
@@ -70,5 +74,8 @@ private:
 
 	UTexture2D* FindOrCreate(const FString& AssetPath);
 
-	UTextureRenderTarget2D* BakeRenderTarget = nullptr;
+private:
+	TArray<FCurveKey> CurveKeys;
+	float CurveRange;
+	TArray<UTextureRenderTarget2DArray*> BakeBuffer;
 };

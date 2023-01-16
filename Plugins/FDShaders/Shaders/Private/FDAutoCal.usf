@@ -12,6 +12,7 @@ struct FTriangle
     int A;
     int B;
     int C;
+    int MID;
 };
 struct FParams
 {
@@ -28,7 +29,7 @@ StructuredBuffer<FAppliedVertex> VerticesBuffer  	: register(t0);
 StructuredBuffer<FTriangle> TrianglesBuffer  	: register(t1);
 StructuredBuffer<FCurveKey> KeyBuffer : register(t2);
 StructuredBuffer<FParams> ParamsBuffer  	: register(t3);
-RWTexture2D<float4> RDGRWTexture : register(u0);
+RWTexture2DArray<float4> RDGRWTexture : register(u0);
 
 
 
@@ -180,17 +181,21 @@ void CS(
     float3 GradientDir = normalize(ParamsBuffer[0].GradientDir);
     float3 GradientOrigin = ParamsBuffer[0].GradientOrigin;
     float2 UVScale;
-    RDGRWTexture.GetDimensions(UVScale.x, UVScale.y);
+    uint MNum;
+    RDGRWTexture.GetDimensions(UVScale.x, UVScale.y, MNum);
     
     float2 UV = float2(DispatchThreadId.x, DispatchThreadId.y) / UVScale;
     
-    RDGRWTexture[DispatchThreadId.xy] = 0;
+    for (int Mid = 0; Mid < MNum; Mid++)
+    {
+        RDGRWTexture[uint3(DispatchThreadId.xy, Mid)] = 0;
+    }
     for (int tri = 0; tri < ParamsBuffer[0].TriangleNum; tri++)
     {
         
         if (IsPointInsideTriangle(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV))
         {
-            RDGRWTexture[DispatchThreadId.xy].w = 1;
+            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].w = 1;
             float3 PixelPos = GetPixelPos(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV, 
             VerticesBuffer[TrianglesBuffer[tri].A].Position, VerticesBuffer[TrianglesBuffer[tri].B].Position, VerticesBuffer[TrianglesBuffer[tri].C].Position, 100);
             
@@ -199,7 +204,7 @@ void CS(
             // Draw UV - V
             if (GradientScale >= 0)
             {
-                RDGRWTexture[DispatchThreadId.xy].y = GradientScale;
+                RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].y = GradientScale;
             }
             
             // Draw UV - U
@@ -213,7 +218,7 @@ void CS(
             // if < 0, -40 => 320, -370 => 710;
             //AngleOffset = floor(abs(AngleOffset)) + fmod(AngleOffset, 360.0) + (abs(AngleOffset) / AngleOffset * -1 + 1) * 180;
             //AngleScale += AngleOffset;
-            RDGRWTexture[DispatchThreadId.xy].x = AngleScale / (ParamsBuffer[0].CurveRange + 360.0);
+            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].x = AngleScale / (ParamsBuffer[0].CurveRange + 360.0);
 
         }
         

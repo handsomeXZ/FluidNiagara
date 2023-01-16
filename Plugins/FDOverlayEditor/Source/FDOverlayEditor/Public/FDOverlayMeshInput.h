@@ -101,7 +101,7 @@ public:
 		TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn, 
 		TFunction<FVector2f(const FVector3d&)> VertPositionToUVFuncIn);
 
-	void ShowToMesh(const UTexture2D* BakedSource);
+	void ShowToMesh(const UTexture2DArray* BakedSource);
 
 	void Shutdown() {};
 
