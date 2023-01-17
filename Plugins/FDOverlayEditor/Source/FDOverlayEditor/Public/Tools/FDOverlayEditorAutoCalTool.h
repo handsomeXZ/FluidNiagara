@@ -52,9 +52,9 @@ public:
 
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 
-	void UpdateOutputTexture(FExtraParams& ExtraParams);
+	void UpdateOutputTexture(FExtraParams ExtraParams);
 	
-	DECLARE_DELEGATE_OneParam(FOnFinishCS, FExtraParams& ExtraParams);
+	DECLARE_DELEGATE_OneParam(FOnFinishCS, FExtraParams ExtraParams);
 	FOnFinishCS OnFinishCS;
 protected:
 	void InitializeCurve();

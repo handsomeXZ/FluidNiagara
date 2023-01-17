@@ -35,6 +35,7 @@ public:
 
 	/** UEdMode interface */
 	virtual void Enter() override;
+	virtual void Exit() override;
 	virtual void CreateToolkit() override;
 	virtual TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetModeCommands() const override;
 	/**
@@ -45,14 +46,12 @@ public:
 		FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager,
 		UFDOverlayViewportButtonsAPI& ViewportButtonsAPI, UFDOverlayLive2DViewportAPI& FDOverlayLive2DViewportAPI);
 
-
 	//virtual void Render(IToolsContextRenderAPI* RenderAPI);
 	//virtual void DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI);
 
 	// Asset management
-	// TODO: 还未实现
-	bool CanApplyChanges() const{return false;};
-	void ApplyChanges(){};
+	bool CanApplyChanges() const;
+	void ApplyChanges();
 
 	// TODO: 还未实现
 	void FocusLivePreviewCameraOnSelection() {};
@@ -69,6 +68,11 @@ public:
 	bool IsActive() { return bIsActive; }
 
 protected:
+	// Not sure whether we need these yet
+	//virtual void BindCommands() override;
+	virtual void OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool) override;
+	virtual void OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool) override;
+
 	void InitializeModeContexts();
 	void InitializeTargets();
 
@@ -121,11 +125,13 @@ protected:
 	TObjectPtr<UFDOverlaySelectionAPI> SelectionAPI = nullptr;
 
 	TArray<TWeakObjectPtr<UFDOverlayContextObject>> ContextsToUpdateOnToolEnd;
+	TArray<TWeakObjectPtr<UFDOverlayContextObject>> ContextsToShutdown;
 
 	// Holds references to PIE callbacks to handle logic when the PIE session starts & shuts down
 	bool bPIEModeActive;
 	FDelegateHandle BeginPIEDelegateHandle;
 	FDelegateHandle EndPIEDelegateHandle;
 	FDelegateHandle CancelPIEDelegateHandle;
+
 	UMaterialInterface* DefaultBakeMaterialInterface = nullptr;
 };

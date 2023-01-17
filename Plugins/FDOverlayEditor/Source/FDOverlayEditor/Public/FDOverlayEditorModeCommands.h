@@ -24,6 +24,12 @@ public:
 	// 这些被链接到各种工具按钮。
 	TSharedPtr<FUICommandInfo> AutoCalTool;
 
+	// 这些在视口按钮中使用
+	TSharedPtr<FUICommandInfo> XChannel;
+	TSharedPtr<FUICommandInfo> YChannel;
+	TSharedPtr<FUICommandInfo> ZChannel;
+	TSharedPtr<FUICommandInfo> WChannel;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 

@@ -16,11 +16,15 @@
 #include "Engine\TextureRenderTarget2DArray.h"
 #include "AssetRegistry\AssetRegistryModule.h"
 #include "Engine\Texture2DArray.h"
+#include "Framework\Notifications\NotificationManager.h"
+#include "Widgets\Notifications\SNotificationList.h"
 
 #include "Operators/FDOverlayEditorAutoCalOp.h"
 
 
 #include "FDOverlayMeshInput.h"
+
+#define LOCTEXT_NAMESPACE "FDOverlayEditorAutoCalTool"
 
 using namespace UE::Geometry;
 
@@ -92,6 +96,8 @@ void UFDOverlayEditorAutoCalTool::Shutdown(EToolShutdownType ShutdownType)
 
 	Settings = nullptr;
 	Targets.Empty();
+	CurveKeys.Empty();
+	BakeBuffer.Empty();
 }
 
 
@@ -229,12 +235,8 @@ void UFDOverlayEditorAutoCalTool::AddBakePass(TObjectPtr<UFDOverlayMeshInput> Ta
 {
 	auto GetUVOffsetOrigin = [](const float& UVOffset, const FVector& LineOrigin, const FVector& LineDirection) {
 		FVector axis = UKismetMathLibrary::Normal(LineDirection, 0.0001);
-		UE_LOG(LogTemp, Warning, TEXT("DirAxis = %f - %f - %f"), axis.X, axis.Y, axis.Z);
 		const FVector v = FVector(-1, 0, 0);
-
 		FVector v2 = UKismetMathLibrary::RotateAngleAxis(v, UVOffset /*UKismetMathLibrary::DegreesToRadians(UVOffset)*/, axis);
-		UE_LOG(LogTemp, Warning, TEXT("Rotate v2 = %f - %f - %f"), v2.X, v2.Y, v2.Z);
-
 		return v2 * 100.0 + FVector(LineOrigin);
 	};
 
@@ -255,13 +257,14 @@ void UFDOverlayEditorAutoCalTool::AddBakePass(TObjectPtr<UFDOverlayMeshInput> Ta
 	ExtraParams.Params.KeyNum = CurveKeys.Num();
 	ExtraParams.CurveKeys = CurveKeys;
 	ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
+	
 
 	TArray<FAppliedVertex> AppliedVertices;
 	TArray<FTriangle> Triangles;
 
 	InitializeMeshResource(Target->AppliedCanonical, AppliedVertices, Triangles, ExtraParams);
 
-	FFDAutoCalCSInterface::Dispatch(MoveTemp(AppliedVertices), MoveTemp(Triangles), ExtraParams, [this](FExtraParams& ExtraParams) {
+	FFDAutoCalCSInterface::Dispatch(MoveTemp(AppliedVertices), MoveTemp(Triangles), ExtraParams, [this](FExtraParams ExtraParams) {
 		UpdateOutputTexture(ExtraParams);
 		this->OnFinishCS.ExecuteIfBound(ExtraParams);
 		});
@@ -285,12 +288,12 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 		break;
 	}
 
-
 	
 	for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
 	{
 		Target->AppliedPreview->InvalidateResult();
 	}
+	FSlateNotificationManager::Get().AddNotification(FNotificationInfo(LOCTEXT("FDOverlayEditorAutoCalTool", "Update Finished")))->SetCompletionState(SNotificationItem::CS_Success);
 }
 
 bool UFDOverlayEditorAutoCalTool::CanAccept() const
@@ -305,7 +308,7 @@ bool UFDOverlayEditorAutoCalTool::CanAccept() const
 	return true;
 }
 
-void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(FExtraParams& ExtraParams)
+void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(FExtraParams ExtraParams)
 {
 	UTexture2DArray* NewObj = nullptr;
 	FString AssetPath = GetAssetPath(Settings->AssetPathFormat, TEXT("FDOverlayArray"), ExtraParams.TargetID);
@@ -421,3 +424,4 @@ UTexture2D* UFDOverlayEditorAutoCalTool::FindOrCreate(const FString& AssetPath)
 	return Result;
 }
 
+#undef LOCTEXT_NAMESPACE

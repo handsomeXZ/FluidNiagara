@@ -11,6 +11,7 @@
 #include "Kismet\KismetMathLibrary.h"
 #include "Engine\TextureRenderTarget2DArray.h"
 #include "TextureRenderTarget2DArrayResource.h"
+//#include "HAL\ThreadSafeBool.h"		DEPRECATED. use `std::atomic<bool>`
 
 #include "DynamicMesh/DynamicMeshAttributeSet.h" //FDynamicMeshUVOverlay
 #include "DynamicMesh/DynamicMesh3.h"
@@ -69,8 +70,8 @@ IMPLEMENT_GLOBAL_SHADER(FFDAutoCalCS, "/Plugin/FDShaders/Private/FDAutoCal.usf",
 void FFDAutoCalCSInterface::Dispatch_GameThread(
 	TArray<FAppliedVertex>& Vertices,
 	TArray<FTriangle>& Triangles,
-	FExtraParams& ExtraParams,
-	TFunction<void(FExtraParams& ExtraParams)> CallBack
+	FExtraParams ExtraParams,
+	TFunction<void(FExtraParams ExtraParams)> CallBack
 )
 {
 	check(IsInGameThread());
@@ -91,25 +92,11 @@ void FFDAutoCalCSInterface::Dispatch_GameThread(
 	//		bDidGPUFinish = true;
 	//	}
 	//);
-	//auto WaitAndCallBack = [CallBack](auto&& WaitAndCallBack, std::atomic<bool>& bDidGPUFinish, FExtraParams& ExtraParams) -> void {
-	//	if (!bDidGPUFinish)
-	//	{
-	//		FPlatformProcess::Sleep(0.1e-3);
-	//		AsyncTask(ENamedThreads::GameThread, [WaitAndCallBack, &bDidGPUFinish, &ExtraParams]() {
-	//			WaitAndCallBack(WaitAndCallBack, bDidGPUFinish, ExtraParams);
-	//			});
-	//	}
-	//	else
-	//	{
-	//		AsyncTask(ENamedThreads::GameThread, [&ExtraParams, CallBack]() {
-	//			CallBack(ExtraParams);
-	//			});
-	//		
-	//	}
-	//};
-	//AsyncTask(ENamedThreads::GameThread, [WaitAndCallBack, &bDidGPUFinish, &ExtraParams]() {
-	//	WaitAndCallBack(WaitAndCallBack, bDidGPUFinish, ExtraParams);
-	//	});
+	
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// 可以借助 FDelegateGraphTask、FGraphEventRef 或者 ENQUEUE_RENDER_COMMAND 来实现渲染回调，但它们似乎不能保证在游戏线程执行
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 	while (!bDidGPUFinish)
 	{
 		FPlatformProcess::Sleep(0.1e-3);
@@ -122,7 +109,7 @@ void FFDAutoCalCSInterface::Dispatch(
 	TArray<FAppliedVertex> Vertices,
 	TArray<FTriangle> Triangles,
 	FExtraParams ExtraParams,
-	TFunction<void(FExtraParams& ExtraParams)> CallBack
+	TFunction<void(FExtraParams ExtraParams)> CallBack
 )
 {
 
@@ -132,7 +119,7 @@ void FFDAutoCalCSInterface::Dispatch(
 
 
 
-void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList, TArray<FAppliedVertex> Vertices, TArray<FTriangle> Triangles, FExtraParams ExtraParams, TFunction<void(FExtraParams& ExtraParams)> CallBack, std::atomic<bool>& bDidGPUFinish)
+void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList, TArray<FAppliedVertex> Vertices, TArray<FTriangle> Triangles, FExtraParams ExtraParams, TFunction<void(FExtraParams ExtraParams)> CallBack, std::atomic<bool>& bDidGPUFinish)
 {
 	check(IsInRenderingThread());
 	FRDGBuilder GraphBuilder(RHICmdList);
@@ -215,7 +202,7 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 					//RHICmdList.ReadSurfaceFloatData(RDGRWTexture->GetRHI(), FIntRect(0, 0, ExtraParams.Size.X, ExtraParams.Size.Y), ColorData, flag);
 					//ExtraParams.OutputTexture->Source.Init(ExtraParams.Size.X, ExtraParams.Size.Y, 1, 1, ETextureSourceFormat::TSF_RGBA16F, (uint8*)ColorData.GetData());
 					//ExtraParams.OutputTexture->DeferCompression = true;
-					bDidGPUFinish = true;
+					bDidGPUFinish.store(true);
 				}
 			});
 	}

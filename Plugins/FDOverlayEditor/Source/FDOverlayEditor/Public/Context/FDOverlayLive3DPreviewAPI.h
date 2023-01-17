@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 
 #include "FDOverlayContextObject.h"
+#include "FDOverlay3DViewportClient.h"
 
 #include "FDOverlayLive3DPreviewAPI.generated.h"
 /**
@@ -16,17 +17,14 @@ class FDOVERLAYEDITOR_API UFDOverlayLive3DPreviewAPI : public UFDOverlayContextO
 public:
 
 	void Initialize(UWorld* WorldIn, UInputRouter* RouterIn,
-		TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFuncIn,
+		TUniqueFunction<FOnToggleOverlayChannel& ()> OnToggleOverlayChannelDelegateIn,
 		TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn);
 
 	UWorld* GetLivePreviewWorld() { return World.Get(); }
 	UInputRouter* GetLivePreviewInputRouter() { return InputRouter.Get(); }
-	void GetLivePreviewCameraState(FViewCameraState& CameraStateOut) 
+	FOnToggleOverlayChannel& OnToggleOverlayChannelDelegate()
 	{ 
-		if (GetLivePreviewCameraStateFunc)
-		{
-			GetLivePreviewCameraStateFunc(CameraStateOut);
-		}
+		return OnToggleOverlayChannelDelegateFunc();
 	}
 
 	void SetLivePreviewCameraToLookAtVolume(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)
@@ -53,6 +51,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnDrawHUD, FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI);
 	FOnDrawHUD OnDrawHUD;
 
+
 protected:
 	UPROPERTY()
 	TWeakObjectPtr<UWorld> World; // 独立的 World
@@ -60,6 +59,6 @@ protected:
 	UPROPERTY()
 	TWeakObjectPtr<UInputRouter> InputRouter; // UInputRouter 是高级输入事件源(例如FEdMode)和一组响应这些事件的 InputBehaviors 之间的中介。
 
-	TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFunc;
+	TUniqueFunction<FOnToggleOverlayChannel&()> OnToggleOverlayChannelDelegateFunc;
 	TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFunc;
 };

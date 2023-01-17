@@ -35,3 +35,44 @@ void FFDOverlay3DViewportClient::SetWidgetMode(UE::Widget::EWidgetMode NewMode)
 {
 	
 }
+
+bool FFDOverlay3DViewportClient::GetDisplayMode(EFDOverlay3DViewportClientDisplayMode ModeIn)
+{
+	switch (ModeIn)
+	{
+		case X:
+			return DisplayModeX;
+		case Y:
+			return DisplayModeY;
+		case Z:
+			return DisplayModeZ;
+		case W:
+			return DisplayModeW;
+		default:
+			return false;
+	}
+}
+
+void FFDOverlay3DViewportClient::ToggleDisplayMode(EFDOverlay3DViewportClientDisplayMode ModeIn)
+{
+	switch (ModeIn)
+	{
+	case X:
+		DisplayModeX = !DisplayModeX;
+		OnToggleOverlayChannelDelegate.Broadcast(EFDOverlay3DViewportClientDisplayMode::X, DisplayModeX);
+		break;
+	case Y:
+		DisplayModeY = !DisplayModeY;
+		OnToggleOverlayChannelDelegate.Broadcast(EFDOverlay3DViewportClientDisplayMode::Y, DisplayModeY);
+		break;
+	case Z:
+		DisplayModeZ = !DisplayModeZ;
+		OnToggleOverlayChannelDelegate.Broadcast(EFDOverlay3DViewportClientDisplayMode::Z, DisplayModeZ);
+		break;
+	case W:
+		DisplayModeW = !DisplayModeW;
+		OnToggleOverlayChannelDelegate.Broadcast(EFDOverlay3DViewportClientDisplayMode::W, DisplayModeW);
+		break;
+	}
+
+}

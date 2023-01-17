@@ -61,7 +61,7 @@ public:
 		TArray<FAppliedVertex> Vertices,
 		TArray<FTriangle> Triangles,
 		FExtraParams ExtraParams,
-		TFunction<void(FExtraParams& ExtraParams)> CallBack,
+		TFunction<void(FExtraParams ExtraParams)> CallBack,
 		std::atomic<bool>& bDidGPUFinish
 	);
 
@@ -69,8 +69,8 @@ public:
 	static void Dispatch_GameThread(
 		TArray<FAppliedVertex>& Vertices,
 		TArray<FTriangle>& Triangles,
-		FExtraParams& ExtraParams,
-		TFunction<void(FExtraParams& ExtraParams)> CallBack
+		FExtraParams ExtraParams,
+		TFunction<void(FExtraParams ExtraParams)> CallBack
 	);
 
 	// Dispatches this shader. Can be called from any thread
@@ -78,7 +78,7 @@ public:
 		TArray<FAppliedVertex> Vertices,
 		TArray<FTriangle> Triangles,
 		FExtraParams ExtraParams,
-		TFunction<void(FExtraParams& ExtraParams)> CallBack
+		TFunction<void(FExtraParams ExtraParams)> CallBack
 	);
 
 

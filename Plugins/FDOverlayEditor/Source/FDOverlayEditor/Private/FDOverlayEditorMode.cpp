@@ -7,6 +7,7 @@
 #include "FDOverlayEditorSubsystem.h"
 #include "FDOverlayMeshInput.h"
 #include "FDOverlayEditorModeToolkit.h"
+#include "FDOverlay3DViewportClient.h"
 #include "Context/FDOverlayContextObject.h"
 #include "Context/FDOverlayLive2DPreviewAPI.h"
 #include "Context/FDOverlayLive3DPreviewAPI.h"
@@ -135,33 +136,28 @@ void UFDOverlayEditorMode::Enter()
 {
 	UEdMode::Enter();
 	
-	// TODO: What is this actually used for?
-	//bPIEModeActive = false;
-	//if (GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor)
-	//{
-	//	bPIEModeActive = true;
-	//	SetSimulationWarning(true);
-	//}
+	bPIEModeActive = false;
+	if (GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor)
+	{
+		bPIEModeActive = true;
+		//SetSimulationWarning(true);
+	}
 
-	//BeginPIEDelegateHandle = FEditorDelegates::PreBeginPIE.AddLambda([this](bool bSimulating)
-	//	{
-	//		bPIEModeActive = true;
-	//		SetSimulationWarning(true);
-	//	});
+	BeginPIEDelegateHandle = FEditorDelegates::PreBeginPIE.AddLambda([this](bool bSimulating)
+	{
+		bPIEModeActive = true;
+		//SetSimulationWarning(true);
+	});
 
-	//EndPIEDelegateHandle = FEditorDelegates::EndPIE.AddLambda([this](bool bSimulating)
-	//	{
-	//		bPIEModeActive = false;
-	//		ActivateDefaultTool();
-	//		SetSimulationWarning(false);
-	//	});
+	EndPIEDelegateHandle = FEditorDelegates::EndPIE.AddLambda([this](bool bSimulating)
+	{
+		bPIEModeActive = false;
+		//ActivateDefaultTool();
+		//SetSimulationWarning(false);
+	});
 
-	//CancelPIEDelegateHandle = FEditorDelegates::CancelPIE.AddLambda([this]()
-	//	{
-	//		bPIEModeActive = false;
-	//		ActivateDefaultTool();
-	//		SetSimulationWarning(false);
-	//	});
+
+
 	RegisterTools();
 	InitializeModeContexts();
 	InitializeTargets();
@@ -196,8 +192,8 @@ void UFDOverlayEditorMode::InitializeAssetEditorContexts(UContextObjectStore& Co
 		Live3DPreviewAPI->Initialize(
 			LivePreviewModeManager.GetPreviewScene()->GetWorld(),
 			LivePreviewModeManager.GetInteractiveToolsContext()->InputRouter,
-			[LivePreviewViewportClientPtr = &LivePreviewViewportClient](FViewCameraState& CameraStateOut) {
-				GetCameraState(*LivePreviewViewportClientPtr, CameraStateOut);
+			[LivePreviewViewportClientPtr = &LivePreviewViewportClient]() -> FOnToggleOverlayChannel& {
+				return ((FFDOverlay3DViewportClient*)LivePreviewViewportClientPtr)->OnToggleOverlayChannel();
 			},
 			[LivePreviewViewportClientPtr = &LivePreviewViewportClient](const FAxisAlignedBox3d& BoundingBox) {
 				// We check for the Viewport here because it might not be open at the time this
@@ -273,14 +269,14 @@ void UFDOverlayEditorMode::InitializeModeContexts()
 
 
 	// 辅助函数，用于添加模式自己创建的上下文，而不是从资产编辑器中获取。
-	//auto AddContextObject = [this, ContextStore](UFDOverlayContextObject* Object)
-	//{
-	//	if (ensure(ContextStore->AddContextObject(Object)))
-	//	{
-	//		ContextsToShutdown.Add(Object);
-	//	}
-	//	ContextsToUpdateOnToolEnd.Add(Object);
-	//};
+	auto AddContextObject = [this, ContextStore](UFDOverlayContextObject* Object)
+	{
+		if (ensure(ContextStore->AddContextObject(Object)))
+		{
+			ContextsToShutdown.Add(Object);
+		}
+		ContextsToUpdateOnToolEnd.Add(Object);
+	};
 
 	/*UUVToolEmitChangeAPI* EmitChangeAPI = NewObject<UUVToolEmitChangeAPI>();
 	EmitChangeAPI = NewObject<UUVToolEmitChangeAPI>();
@@ -371,6 +367,9 @@ void UFDOverlayEditorMode::InitializeTargets()
 
 	// Build the tool targets that provide us with 3d dynamic meshes
 	UFDOverlayEditorSubsystem* UVSubsystem = GEditor->GetEditorSubsystem<UFDOverlayEditorSubsystem>();
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UFDOverlayLive3DPreviewAPI* Live3DPreviewAPI = ContextStore->FindContext<UFDOverlayLive3DPreviewAPI>();
+
 	UVSubsystem->BuildTargets(OriginalObjectsToEdit, GetToolTargetRequirements(), ToolTargets);
 
 	// 收集目标的三维动态网格。每个资产总是有一个，每个资产的AssetID将是这些数组的索引。
@@ -418,7 +417,8 @@ void UFDOverlayEditorMode::InitializeTargets()
 		{
 			ToolInputObject->AppliedPreview->PreviewMesh->SetTransform(Transforms[AssetID]);
 		}
-
+		
+		Live3DPreviewAPI->OnToggleOverlayChannelDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::ChangeDynamicMaterialDisplayChannel);
 		//ToolInputObject->UnwrapPreview->PreviewMesh->SetMaterial(
 		//	0, ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(
 		//		GetToolManager(),
@@ -518,5 +518,97 @@ TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> UFDOverlayEditorMode::GetModeCom
 {
 	return FFDOverlayEditorModeCommands::Get().GetCommands();
 }
+
+void UFDOverlayEditorMode::ApplyChanges()
+{
+	
+}
+bool UFDOverlayEditorMode::CanApplyChanges() const
+{
+	return !bPIEModeActive /*&& HaveUnappliedChanges()*/;
+}
+
+void UFDOverlayEditorMode::OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
+{
+	
+}
+
+void UFDOverlayEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
+{
+	for (TWeakObjectPtr<UFDOverlayContextObject> Context : ContextsToUpdateOnToolEnd)
+	{
+		if (ensure(Context.IsValid()))
+		{
+			Context->OnToolEnded(Tool);
+		}
+	}
+}
+
+void UFDOverlayEditorMode::Exit()
+{
+
+	// ToolsContext->EndTool only shuts the tool on the next tick, and ToolsContext->DeactivateActiveTool is
+	// inaccessible, so we end up having to do this to force the shutdown right now.
+	GetToolManager()->DeactivateTool(EToolSide::Mouse, EToolShutdownType::Cancel);
+
+	//for (UUVToolAction* Action : RegisteredActions)
+	//{
+	//	Action->Shutdown();
+	//}
+	//RegisteredActions.Reset();
+
+	for (TObjectPtr<UFDOverlayMeshInput> ToolInput : ToolInputObjects)
+	{
+		ToolInput->Shutdown();
+	}
+	ToolInputObjects.Reset();
+	//WireframesToTick.Reset();
+	OriginalObjectsToEdit.Reset();
+
+	for (TObjectPtr<UMeshOpPreviewWithBackgroundCompute> Preview : AppliedPreviews)
+	{
+		Preview->Shutdown();
+	}
+	AppliedPreviews.Reset();
+	AppliedCanonicalMeshes.Reset();
+	ToolTargets.Reset();
+
+	//if (BackgroundVisualization)
+	//{
+	//	BackgroundVisualization->Disconnect();
+	//	BackgroundVisualization = nullptr;
+	//}
+
+	//PropertyObjectsToTick.Empty();
+	LivePreviewWorld = nullptr;
+
+	bIsActive = false;
+
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	for (TWeakObjectPtr<UFDOverlayContextObject> Context : ContextsToShutdown)
+	{
+		if (ensure(Context.IsValid()))
+		{
+			Context->Shutdown();
+			ContextStore->RemoveContextObject(Context.Get());
+		}
+	}
+
+	//GetInteractiveToolsContext()->OnRender.RemoveAll(this);
+	//GetInteractiveToolsContext()->OnDrawHUD.RemoveAll(this);
+	//if (LivePreviewITC.IsValid())
+	//{
+	//	LivePreviewITC->OnRender.RemoveAll(this);
+	//	LivePreviewITC->OnDrawHUD.RemoveAll(this);
+	//}
+
+	FEditorDelegates::PreBeginPIE.Remove(BeginPIEDelegateHandle);
+	FEditorDelegates::EndPIE.Remove(EndPIEDelegateHandle);
+	FEditorDelegates::CancelPIE.Remove(CancelPIEDelegateHandle);
+	//FEditorDelegates::PostSaveWorldWithContext.Remove(PostSaveWorldDelegateHandle);
+
+	Super::Exit();
+}
+
 
 #undef LOCTEXT_NAMESPACE

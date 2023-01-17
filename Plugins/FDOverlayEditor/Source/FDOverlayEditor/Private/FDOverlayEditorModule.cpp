@@ -3,12 +3,13 @@
 #include "FDOverlayEditorModule.h"
 
 #include "FDOverlayEditorModeCommands.h"
+#include "Tools/FDOverlayStyle.h"
 
 #define LOCTEXT_NAMESPACE "FDOverlayEditorModule"
 
 void FFDOverlayEditorModule::StartupModule()
 {
-
+	FFDOverlayStyle::Get();
 	FFDOverlayEditorModeCommands::Register();
 }
 

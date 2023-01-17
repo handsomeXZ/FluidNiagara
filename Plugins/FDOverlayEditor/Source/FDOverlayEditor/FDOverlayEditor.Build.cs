@@ -68,7 +68,9 @@ public class FDOverlayEditor : ModuleRules
 				"MeshConversion",
 				"MeshDescription",
 				"GeometryFramework",
-			}
+                "ToolMenus",
+                "ToolWidgets",
+            }
 			);
 		
 		

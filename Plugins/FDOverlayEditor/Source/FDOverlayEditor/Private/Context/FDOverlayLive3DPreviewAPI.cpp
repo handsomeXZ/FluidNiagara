@@ -4,12 +4,12 @@
 using namespace UE::Geometry;
 
 void UFDOverlayLive3DPreviewAPI::Initialize(UWorld* WorldIn, UInputRouter* RouterIn,
-	TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFuncIn,
+	TUniqueFunction<FOnToggleOverlayChannel&()> OnToggleOverlayChannelDelegateIn,
 	TUniqueFunction<void(const FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn)
 {
 	World = WorldIn;
 	InputRouter = RouterIn;
-	GetLivePreviewCameraStateFunc = MoveTemp(GetLivePreviewCameraStateFuncIn);
+	OnToggleOverlayChannelDelegateFunc = MoveTemp(OnToggleOverlayChannelDelegateIn);
 	SetLivePreviewCameraToLookAtVolumeFunc = MoveTemp(SetLivePreviewCameraToLookAtVolumeFuncIn);
 }
 

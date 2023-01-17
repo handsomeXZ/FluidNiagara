@@ -6,10 +6,13 @@
 #include "FDOverlay3DViewportClient.h"
 #include "FDOverlayEditorSubsystem.h"
 #include "FDOverlayEditorModule.h"
-#include "SFDOverlay2DViewport.h"
 #include "FDOverlayEditorMode.h"
-//#include "FDOverlayEditorModeCommands.h"
+#include "FDOverlayEditorModeCommands.h"
+#include "SWidget/SFDOverlay2DViewport.h"
+#include "SWidget/SFDOverlay3DViewport.h"
+#include "Tools/FDOverlayStyle.h"
 
+#include "Framework\Commands\UIAction.h"
 #include "PreviewScene.h"
 #include "AdvancedPreviewScene.h"
 #include "EditorViewportTabContent.h"
@@ -100,7 +103,7 @@ FFDOverlayAssetEditorToolkit::FFDOverlayAssetEditorToolkit(UAssetEditor* InOwnin
 
 	Live3DPreviewViewportDelegate = [this](FAssetEditorViewportConstructionArgs InArgs)
 	{
-		return SNew(SFDOverlay2DViewport, InArgs)
+		return SNew(SFDOverlay3DViewport, InArgs)
 			.EditorViewportClient(Live3DPreviewViewportClient);
 	};
 
@@ -179,6 +182,7 @@ void FFDOverlayAssetEditorToolkit::OnClose()
 	FAssetEditorToolkit::OnClose();
 }
 
+// 当模式启动或结束一个工具时，这些被间接(通过工具箱主机)从模式工具箱中调用，以添加或删除 accept/cancel overlay 。
 void FFDOverlayAssetEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
 {
 	// TODO: Unimplemented, is empty function
@@ -291,16 +295,17 @@ void FFDOverlayAssetEditorToolkit::PostInitAssetEditor()
 	// 添加"Apply Changes"按钮.实际上，几乎在任何时候这样做都是安全的，甚至在工具栏注册之前，但将大多数内容放入PostInitAssetEditor()更容易。
 	// TODO:我们可以考虑将这些绑定到模式的操作放到一些模式操作列表中，然后让模式在进入/退出时将它们提供给拥有的资产编辑器。当/如果这变得更容易做的时候，重新审视。
 	// ToolkitCommands: List of UI commands for this toolkit.   This should be filled in by the derived class!
-//	ToolkitCommands->MapAction(
-//		FFDOverlayEditorModeCommands::Get().ApplyChanges, FUIAction()
-///*		FExecuteAction::CreateUObject(FDAssistoMode, &UFDOverlayEditorMode::ApplyChanges),
-//		FCanExecuteAction::CreateUObject(FDAssistoMode, &UFDOverlayEditorMode::CanApplyChanges)*/);
-//	FName ParentToolbarName;
-//	const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
-//	UToolMenu* AssetToolbar = UToolMenus::Get()->ExtendMenu(ToolBarName);
-//	FToolMenuSection& Section = AssetToolbar->FindOrAddSection("Asset");
-//	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FFDOverlayEditorModeCommands::Get().ApplyChanges));
-
+	ToolkitCommands->MapAction(
+		FFDOverlayEditorModeCommands::Get().ApplyChanges,
+		FExecuteAction::CreateUObject(FDOverlayEditorMode, &UFDOverlayEditorMode::ApplyChanges),
+		FCanExecuteAction::CreateUObject(FDOverlayEditorMode, &UFDOverlayEditorMode::CanApplyChanges));
+	FName ParentToolbarName;
+	const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
+	UToolMenu* AssetToolbar = UToolMenus::Get()->ExtendMenu(ToolBarName);
+	FToolMenuSection& Section = AssetToolbar->FindOrAddSection("Asset");
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FFDOverlayEditorModeCommands::Get().ApplyChanges, TAttribute<FText>(),
+	TAttribute<FText>(), FSlateIcon(FFDOverlayStyle::Get().GetStyleSetName(), "FDOverlay.ApplyChanges")));
+	
 	// Add the channel selection button.
 	// TODO：这个没必要实现，不过是否可以把这个替换为 材质ID Selection button ？
 	/*check(UVMode->GetToolkit().Pin());
