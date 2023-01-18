@@ -28,7 +28,7 @@ public:
 	FFDOverlay3DViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene = nullptr,
 		const TWeakPtr<SEditorViewport>& InEditorViewportWidget = nullptr, UFDOverlayViewportButtonsAPI* ViewportButtonsAPI = nullptr);
 
-	virtual ~FFDOverlay3DViewportClient() {}
+	virtual ~FFDOverlay3DViewportClient();
 
 
 	bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override {	return true; }

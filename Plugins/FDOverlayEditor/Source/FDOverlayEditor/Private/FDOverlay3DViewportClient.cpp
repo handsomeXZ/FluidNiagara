@@ -24,6 +24,12 @@ FFDOverlay3DViewportClient::FFDOverlay3DViewportClient(FEditorModeTools* InModeT
 	OverrideNearClipPlane(KINDA_SMALL_NUMBER);
 }
 
+FFDOverlay3DViewportClient::~FFDOverlay3DViewportClient()
+{
+	OnToggleOverlayChannelDelegate.RemoveAll(this);
+}
+
+
 void FFDOverlay3DViewportClient::FocusCameraOnSelection()
 {
 	if (ViewportButtonsAPI)

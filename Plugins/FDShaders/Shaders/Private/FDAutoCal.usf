@@ -31,13 +31,18 @@ StructuredBuffer<FCurveKey> KeyBuffer : register(t2);
 StructuredBuffer<FParams> ParamsBuffer  	: register(t3);
 RWTexture2DArray<float4> RDGRWTexture : register(u0);
 
-
+// Negative: 1
+// Positive: 0
+float IsNegative(float valueIn)
+{
+    return 1 - saturate(ceil(valueIn));
+}
 
 float DistancePointToLine(float3 p, float3 o, float3 dir)
 {
     dir = normalize(dir);
     float3 v = p - o;
-    float d = length(cross(v, dir));
+    float d = cross(v, dir);
     //return d / length(dir);
     return d;
 }
@@ -46,7 +51,7 @@ float DistancePointAlongLine(float3 p, float3 o, float3 dir)
 {
     dir = normalize(dir);
     float3 v = p - o;
-    float d = length(dot(v, dir));
+    float d = dot(v, dir);
     //return d / length(dir);
     return d;
 }
@@ -93,15 +98,13 @@ float3 GetPixelPos(float2 Pixeluv, float2 Auv, float2 Buv, float2 Cuv, float3 A,
 
 float Eval(float InTime)
 {
-    uint NumKeyBuffer = 0;
-    uint CurveKeySize = 0;
-    KeyBuffer.GetDimensions(NumKeyBuffer, CurveKeySize);
+    uint NumKeyBuffer = ParamsBuffer[0].KeyNum;
 
     float InterpVal = 0;
 
     if (NumKeyBuffer == 0)
     {
-		// If no KeyBuffer in curve, return the Default value.
+		// If no KeyBuffer in curve, return the Default value. 
     }
     else if (NumKeyBuffer < 2 || (InTime <= KeyBuffer[0].Time))
     {
@@ -200,25 +203,28 @@ void CS(
             VerticesBuffer[TrianglesBuffer[tri].A].Position, VerticesBuffer[TrianglesBuffer[tri].B].Position, VerticesBuffer[TrianglesBuffer[tri].C].Position, 100);
             
             float GradientScale = DistancePointAlongLine(PixelPos, GradientOrigin, GradientDir) / ParamsBuffer[0].GradientMax;
-
+            
             // Draw UV - V
-            if (GradientScale >= 0)
-            {
-                RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].y = GradientScale;
-            }
+            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].y = saturate(GradientScale);
             
             // Draw UV - U
-            float AngleOffset = Eval(GradientScale);
+            float AngleOffset = Eval(GradientScale);    
             float3 UVCurvePoint = PointAtLine(PixelPos, ParamsBuffer[0].UVCurveOrigin, GradientDir);
             float3 PixAtLinePoint = PointAtLine(PixelPos, GradientOrigin, GradientDir);
             float3 A = UVCurvePoint - PixAtLinePoint;
             float3 B = PixelPos - PixAtLinePoint;
-            float AngleScale = degrees(acos(dot(normalize(A), normalize(B)))) + length((normalize(cross(A, B)) + normalize(GradientDir))) * 90; // Since the dot can only calculate angles of 180 degrees at most, additional calculations are added to ensure that the result is 0 to 360
+            float AngleScale = degrees(acos(dot(normalize(A), normalize(B)))); 
+            AngleScale = dot(normalize(cross(A, B)), GradientDir) * (180 * length((normalize(cross(A, B)) + GradientDir)) - AngleScale); // Since the dot can only calculate angles of 180 degrees at most, additional calculations are added to ensure that the result is 0 to 360
             // if > 0, AngleOffset = AngleOffset; 
-            // if < 0, -40 => 320, -370 => 710;
-            //AngleOffset = floor(abs(AngleOffset)) + fmod(AngleOffset, 360.0) + (abs(AngleOffset) / AngleOffset * -1 + 1) * 180;
-            //AngleScale += AngleOffset;
-            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].x = AngleScale / (ParamsBuffer[0].CurveRange + 360.0);
+            // if < 0, -40 => 320, -370 => 710, -500 => 580;
+            // AngleOffset = 30, same layer: 10 => 40, 350 => 20
+            // AngleOffset = -30, same layer: 10 => 340, 350 => 320
+            // Step 1
+            AngleOffset = floor(abs(AngleOffset - fmod(AngleOffset, 360.0))) + fmod(AngleOffset, 360.0) + IsNegative(AngleOffset) * 360;
+            // Step 2
+            AngleScale = fmod(AngleOffset + AngleScale + IsNegative(AngleOffset + AngleScale) * 360, 360.0);
+            
+            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].x = AngleScale / 360.0;
 
         }
         

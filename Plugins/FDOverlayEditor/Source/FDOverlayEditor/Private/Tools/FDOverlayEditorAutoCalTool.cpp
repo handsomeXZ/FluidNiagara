@@ -124,7 +124,7 @@ void UFDOverlayEditorAutoCalTool::InitializeCurve()
 	}
 	else
 	{
-		CurveKeys.Add(FCurveKey(0, 0, 0, 0));
+		CurveKeys.Empty();
 	}
 
 	CurveRange = RangMax - RangeMin;
@@ -235,11 +235,22 @@ void UFDOverlayEditorAutoCalTool::AddBakePass(TObjectPtr<UFDOverlayMeshInput> Ta
 {
 	auto GetUVOffsetOrigin = [](const float& UVOffset, const FVector& LineOrigin, const FVector& LineDirection) {
 		FVector axis = UKismetMathLibrary::Normal(LineDirection, 0.0001);
-		const FVector v = FVector(-1, 0, 0);
-		FVector v2 = UKismetMathLibrary::RotateAngleAxis(v, UVOffset /*UKismetMathLibrary::DegreesToRadians(UVOffset)*/, axis);
+		FVector cross = UKismetMathLibrary::Cross_VectorVector(axis, FVector(0, 0, 1));
+		float degress = UKismetMathLibrary::RadiansToDegrees(UKismetMathLibrary::Acos(UKismetMathLibrary::Dot_VectorVector(axis, FVector(0, 0, 1))));
+		if (UKismetMathLibrary::Cross_VectorVector(cross, FVector(0, 1, 0)).Z > 0) // 假定 Y轴 为观察方向，与旋转轴叉积.z为负的，定义为逆时针旋转
+		{
+			degress = 360 - degress;
+		}
+		
+		const FVector v = UKismetMathLibrary::RotateAngleAxis(FVector(1, 0, 0), degress, cross);
+
+		// DEPRECATED. 不能取随机方向，否则UV轴就无法正常调整了。
+		// const FVector v = UKismetMathLibrary::RandomUnitVectorInConeInDegrees(LineOrigin, 90); 
+
+		FVector v2 = UKismetMathLibrary::RotateAngleAxis(v, UVOffset, axis);
 		return v2 * 100.0 + FVector(LineOrigin);
 	};
-
+	
 
 	FExtraParams ExtraParams;
 
