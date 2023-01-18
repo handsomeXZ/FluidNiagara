@@ -13,7 +13,35 @@ UENUM()
 enum class EFDOverlayEditorAutoCalType : uint8
 {
 	Line,
-	Point
+	Point,
+	MultiLine,
+	MultiPoint
+};
+USTRUCT()
+struct FMultiLineData
+{
+	GENERATED_USTRUCT_BODY()
+	UPROPERTY(EditAnywhere)
+	FVector3f LineOrigin;
+	UPROPERTY(EditAnywhere)
+	FVector3f LineDirection = FVector3f(0, 0, 1);
+	UPROPERTY(EditAnywhere, meta = (ClampMin = "0", ClampMax = "360"))
+	float UVOffset;
+	UPROPERTY(EditAnywhere)
+	UCurveFloat* UVCurve = nullptr;
+};
+USTRUCT()
+struct FMultiPointData
+{
+	GENERATED_USTRUCT_BODY()
+	UPROPERTY(EditAnywhere, DisplayName = "PointOrigin")
+	FVector3f LineOrigin;
+	UPROPERTY(EditAnywhere, DisplayName = "UVDirection")
+	FVector3f LineDirection = FVector3f(0, 0, 1);
+	UPROPERTY(EditAnywhere, meta = (ClampMin = "0", ClampMax = "360"))
+	float UVOffset;
+	UPROPERTY(EditAnywhere)
+	UCurveFloat* UVCurve = nullptr;
 };
 
 /**
@@ -26,27 +54,34 @@ class FDOVERLAYEDITOR_API UFDOverlayEditorAutoCalProperties : public UInteractiv
 
 public:
 	/** Type of AutoCal applied to calculate */
-	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal")
+	UPROPERTY(EditAnywhere, Category = "AutoCalMode")
 	EFDOverlayEditorAutoCalType LayoutType = EFDOverlayEditorAutoCalType::Line;
 
-	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Line"))
+	UPROPERTY(EditAnywhere, Category = "SingleMode", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Line"))
 	FVector3f LineOrigin;
-	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Line"))
+	UPROPERTY(EditAnywhere, Category = "SingleMode", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Line"))
 	FVector3f LineDirection = FVector3f(0, 0, 1);
 
-	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal", meta = (ClampMin = "0", ClampMax = "360"))
-	float UVOffset;
+	UPROPERTY(EditAnywhere, Category = "SingleMode", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Point"))
+	FVector3f PointOrigin;
+	UPROPERTY(EditAnywhere, Category = "SingleMode", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Point"))
+	FVector3f UVDirection = FVector3f(0, 0, 1);
 
-	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal")
+	UPROPERTY(EditAnywhere, Category = "SingleMode", meta = (ClampMin = "0", ClampMax = "360", EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Point || LayoutType == EFDOverlayEditorAutoCalType::Line"))
+	float UVOffset;
+	UPROPERTY(EditAnywhere, Category = "SingleMode", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::Point || LayoutType == EFDOverlayEditorAutoCalType::Line"))
 	UCurveFloat* UVCurve = nullptr;
 
-	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal")
+	UPROPERTY(EditAnywhere, Category = "MultiMode", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::MultiLine"))
+	TArray<FMultiLineData> MultiLineData;
+	UPROPERTY(EditAnywhere, Category = "MultiMode", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::MultiPoint"))
+	TArray<FMultiPointData> MultiPointData;
+
+	UPROPERTY(EditAnywhere, Category = "Settings")
 	int XYSize = 256;
-
-	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal")
+	UPROPERTY(EditAnywhere, Category = "Settings")
 	FString Name = TEXT("OutputName");
-
-	UPROPERTY(EditAnywhere, Category = "FDOverlay AutoCal")
+	UPROPERTY(EditAnywhere, Category = "Settings")
 	FString AssetPathFormat = TEXT("{AssetFolder}/{AssetName}_Texture2D_{OutputName}_{MIDNum}");
 
 };

@@ -28,13 +28,23 @@ RDG_TEXTURE_ACCESS(CopyDest, ERHIAccess::CopyDest)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FFDAutoCalParameters, )
-SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FAppliedVertex>, VerticesBuffer)
+SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FUVVertex>, VerticesBuffer)
 SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FTriangle>, TrianglesBuffer)
 SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FCurveKey>, KeyBuffer)
 SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FParams>, ParamsBuffer)
 SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<float4>, RDGRWTexture)
 END_SHADER_PARAMETER_STRUCT()
 
+BEGIN_SHADER_PARAMETER_STRUCT(FFDAutoCalMultiParameters, )
+SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FUVVertex>, VerticesBuffer)
+SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FTriangle>, TrianglesBuffer)
+SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FCurveKey>, KeyBuffer)
+SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FMultiParams>, ParamsBuffer)
+SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FMultiParamsArr>, ParamsBufferArr)
+SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<float4>, RDGRWTexture)
+END_SHADER_PARAMETER_STRUCT()
+
+template<int32 ShaderMode>
 class FFDAutoCalCS : public FGlobalShader
 {
 public:
@@ -43,6 +53,12 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FFDAutoCalCS, FGlobalShader);
 
 	using FParameters = FFDAutoCalParameters;
+	
+	/**
+	 * 1. SingleLine Bake
+	 * 2. SinglePoint Bake
+	 */
+	//static int32 ShaderMode = 0;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -57,21 +73,60 @@ public:
 		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), FComputeShaderUtils::kGolden2DGroupSize);
 		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("SHADERMODE"), ShaderMode);
 	}
-
 
 private:
 
 };
-IMPLEMENT_GLOBAL_SHADER(FFDAutoCalCS, "/Plugin/FDShaders/Private/FDAutoCal.usf", "CS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FFDAutoCalCS<1>, "/Plugin/FDShaders/Private/FDAutoCal.usf", "CS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FFDAutoCalCS<2>, "/Plugin/FDShaders/Private/FDAutoCal.usf", "CS", SF_Compute);
+
+template<int32 ShaderMode>
+class FFDAutoCalMultiCS : public FGlobalShader
+{
+public:
+
+	DECLARE_GLOBAL_SHADER(FFDAutoCalMultiCS);
+	SHADER_USE_PARAMETER_STRUCT(FFDAutoCalMultiCS, FGlobalShader);
+
+	using FParameters = FFDAutoCalMultiParameters;
+
+	/**
+	 * 1. MultiLine Bake
+	 * 2. MultiPoint Bake
+	 */
+	 //static int32 ShaderMode = 0;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) {
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		/**
+		 * Typed UAV loads are disallowed by default, as Windows 7 D3D 11.0 does not support them; this flag allows a shader to use them.
+		 * so, you should add 'CFLAG_AllowTypedUAVLoads' into your shader
+		 */
+		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("SHADERMODE"), ShaderMode);
+	}
+
+private:
+
+};
+IMPLEMENT_GLOBAL_SHADER(FFDAutoCalMultiCS<1>, "/Plugin/FDShaders/Private/FDAutoCalMulty.usf", "CS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FFDAutoCalMultiCS<2>, "/Plugin/FDShaders/Private/FDAutoCalMulty.usf", "CS", SF_Compute);
 
 
-
+template<typename T>
 void FFDAutoCalCSInterface::Dispatch_GameThread(
-	TArray<FAppliedVertex>& Vertices,
+	TArray<FUVVertex>& Vertices,
 	TArray<FTriangle>& Triangles,
-	FExtraParams ExtraParams,
-	TFunction<void(FExtraParams ExtraParams)> CallBack
+	T ExtraParams,
+	TFunction<void(T ExtraParams)> CallBack
 )
 {
 	check(IsInGameThread());
@@ -79,7 +134,7 @@ void FFDAutoCalCSInterface::Dispatch_GameThread(
 	std::atomic<bool> bDidGPUFinish(false);
 
 	ENQUEUE_RENDER_COMMAND(FDAutoCalCommand)(
-		[Vertices, Triangles, ExtraParams, CallBack, &bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
+		[&Vertices, &Triangles, ExtraParams, CallBack, &bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
 		{
 			Dispatch_RenderThread(RHICmdList, Vertices, Triangles, ExtraParams, CallBack, bDidGPUFinish);
 
@@ -104,12 +159,12 @@ void FFDAutoCalCSInterface::Dispatch_GameThread(
 	CallBack(ExtraParams);
 }
 
-
+template<typename T>
 void FFDAutoCalCSInterface::Dispatch(
-	TArray<FAppliedVertex> Vertices,
-	TArray<FTriangle> Triangles,
-	FExtraParams ExtraParams,
-	TFunction<void(FExtraParams ExtraParams)> CallBack
+	TArray<FUVVertex>& Vertices,
+	TArray<FTriangle>& Triangles,
+	T ExtraParams,
+	TFunction<void(T ExtraParams)> CallBack
 )
 {
 
@@ -119,17 +174,17 @@ void FFDAutoCalCSInterface::Dispatch(
 
 
 
-void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList, TArray<FAppliedVertex> Vertices, TArray<FTriangle> Triangles, FExtraParams ExtraParams, TFunction<void(FExtraParams ExtraParams)> CallBack, std::atomic<bool>& bDidGPUFinish)
+void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList, TArray<FUVVertex>& Vertices, TArray<FTriangle>& Triangles, FExtraParams ExtraParams, TFunction<void(FExtraParams ExtraParams)> CallBack, std::atomic<bool>& bDidGPUFinish)
 {
 	check(IsInRenderingThread());
 	FRDGBuilder GraphBuilder(RHICmdList);
 
-	FRDGBufferRef VerticesBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FAppliedVertex), Vertices.Num()), TEXT("FluidDynamicOverlay.VerticesBuffer"));
+	FRDGBufferRef VerticesBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FUVVertex), Vertices.Num()), TEXT("FluidDynamicOverlay.VerticesBuffer"));
 	FRDGBufferRef TrianglesBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FTriangle), Triangles.Num()), TEXT("FluidDynamicOverlay.TrianglesBuffer"));
 	FRDGBufferRef KeyBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FCurveKey), ExtraParams.CurveKeys.Num()), TEXT("FluidDynamicOverlay.VerticesBuffer"));
 	FRDGBufferRef ParamsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FParams), 1), TEXT("FluidDynamicOverlay.TrianglesBuffer"));
 
-	GraphBuilder.QueueBufferUpload(VerticesBuffer, Vertices.GetData(), sizeof(FAppliedVertex) * Vertices.Num(), ERDGInitialDataFlags::None);
+	GraphBuilder.QueueBufferUpload(VerticesBuffer, Vertices.GetData(), sizeof(FUVVertex) * Vertices.Num(), ERDGInitialDataFlags::None);
 	GraphBuilder.QueueBufferUpload(TrianglesBuffer, Triangles.GetData(), sizeof(FTriangle) * Triangles.Num(), ERDGInitialDataFlags::None);
 	GraphBuilder.QueueBufferUpload(KeyBuffer, ExtraParams.CurveKeys.GetData(), sizeof(FCurveKey) * ExtraParams.CurveKeys.Num(), ERDGInitialDataFlags::None);
 	GraphBuilder.QueueBufferUpload(ParamsBuffer, &(ExtraParams.Params), sizeof(FParams), ERDGInitialDataFlags::None);
@@ -152,9 +207,9 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 		DECLARE_GPU_STAT(FDAutoCalCS)
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FDAutoCalCS);
 		RDG_EVENT_SCOPE(GraphBuilder, "FluidDynamicOverlayComputeShader");
-		TShaderMapRef<FFDAutoCalCS>ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		TShaderMapRef<FFDAutoCalCS<0>>ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
-		FFDAutoCalCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FFDAutoCalCS::FParameters>();
+		FFDAutoCalCS<0>::FParameters* PassParameters = GraphBuilder.AllocParameters<FFDAutoCalCS<0>::FParameters>();
 		PassParameters->VerticesBuffer = GraphBuilder.CreateSRV(VerticesBuffer);
 		PassParameters->TrianglesBuffer = GraphBuilder.CreateSRV(TrianglesBuffer);
 		PassParameters->KeyBuffer = GraphBuilder.CreateSRV(KeyBuffer);

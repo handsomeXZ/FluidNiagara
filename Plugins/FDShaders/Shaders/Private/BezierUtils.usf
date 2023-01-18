@@ -43,3 +43,81 @@ float EvalForTwoKeyBuffer(const FCurveKey Key1, const FCurveKey Key2, const floa
 		return Key1.Value;
 	}
 }
+float Eval(StructuredBuffer<FCurveKey> KeyBuffer, uint NumKeyBufferIn, float TimeIn)
+{
+    uint NumKeyBuffer = NumKeyBufferIn;
+
+    float InterpVal = 0;
+
+    if (NumKeyBuffer == 0)
+    {
+		// If no KeyBuffer in curve, return the Default value. 
+    }
+    else if (NumKeyBuffer < 2 || (TimeIn <= KeyBuffer[0].Time))
+    {
+        if (NumKeyBuffer > 1)
+        {
+            float DT = KeyBuffer[1].Time - KeyBuffer[0].Time;
+
+            if (IsNearlyZero(DT))
+            {
+                InterpVal = KeyBuffer[0].Value;
+            }
+            else
+            {
+                float DV = KeyBuffer[1].Value - KeyBuffer[0].Value;
+                float Slope = DV / DT;
+
+                InterpVal = Slope * (TimeIn - KeyBuffer[0].Time) + KeyBuffer[0].Value;
+            }
+        }
+        else
+        {
+			// Otherwise if constant or in a cycle or oscillate, always use the first key value
+            InterpVal = KeyBuffer[0].Value;
+        }
+    }
+    else if (TimeIn < KeyBuffer[NumKeyBuffer - 1].Time)
+    {
+		// perform a lower bound to get the second of the interpolation nodes
+        int first = 1;
+        int last = NumKeyBuffer - 1;
+        int count = last - first;
+
+        while (count > 0)
+        {
+            int step = count / 2;
+            int middle = first + step;
+
+            if (TimeIn >= KeyBuffer[middle].Time)
+            {
+                first = middle + 1;
+                count -= step + 1;
+            }
+            else
+            {
+                count = step;
+            }
+        }
+
+        InterpVal = EvalForTwoKeyBuffer(KeyBuffer[first - 1], KeyBuffer[first], TimeIn);
+    }
+    else
+    {
+        float DT = KeyBuffer[NumKeyBuffer - 2].Time - KeyBuffer[NumKeyBuffer - 1].Time;
+
+        if (IsNearlyZero(DT))
+        {
+            InterpVal = KeyBuffer[NumKeyBuffer - 1].Value;
+        }
+        else
+        {
+            float DV = KeyBuffer[NumKeyBuffer - 2].Value - KeyBuffer[NumKeyBuffer - 1].Value;
+            float Slope = DV / DT;
+
+            InterpVal = Slope * (TimeIn - KeyBuffer[NumKeyBuffer - 1].Time) + KeyBuffer[NumKeyBuffer - 1].Value;
+        }
+    }
+
+    return InterpVal;
+}

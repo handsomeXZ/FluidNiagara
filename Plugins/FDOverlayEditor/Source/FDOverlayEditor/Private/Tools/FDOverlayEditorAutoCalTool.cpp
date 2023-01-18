@@ -111,107 +111,198 @@ void UFDOverlayEditorAutoCalTool::OnTick(float DeltaTime)
 
 void UFDOverlayEditorAutoCalTool::InitializeCurve()
 {
-	float RangeMin = 0, RangMax = 0;
-	if (Settings->UVCurve)
-	{
-		CurveKeys.Empty(Settings->UVCurve->FloatCurve.GetNumKeys());
-		for (const FRichCurveKey& key : Settings->UVCurve->FloatCurve.GetConstRefOfKeys())
+	auto MultiInitialize = [this](TArray<TArray<FCurveKey>>& CurveList, TArray<float>& RangeList) {
+		if (Settings->MultiLineData.Num() == 0)
 		{
-			CurveKeys.Add(FCurveKey(key.Time, key.Value, key.ArriveTangent, key.LeaveTangent));
+			TArray<FCurveKey> arr;
+			arr.Emplace(FCurveKey(0, 0, 0, 0));
+			CurveList.Empty(1);
+			RangeList.Empty(1);
+			CurveList.Add(MoveTemp(arr));
+			RangeList.Emplace(float(0));
+			return;
 		}
 
-		Settings->UVCurve->FloatCurve.GetValueRange(RangeMin, RangMax);
-	}
-	else
-	{
-		CurveKeys.Empty();
-	}
-
-	CurveRange = RangMax - RangeMin;
-}
-
-void UFDOverlayEditorAutoCalTool::InitializeMeshResource(const TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonical,
-	TArray<FAppliedVertex>& AppliedVertices, TArray<FTriangle>& Triangles, FExtraParams& ExtraParams)
-{
-	FDynamicMeshUVOverlay* UVOverlay = AppliedCanonical->Attributes()->GetUVLayer(0);
-
-	int VerticesNum = UVOverlay->ElementCount();
-	int TrianglesNum = AppliedCanonical->TriangleCount();
-
-	AppliedVertices.Reset(VerticesNum);
-	double GradientMax = 0;
-
-	auto GetDistanceAlongLine = [](const FVector& Point, const FVector& LineOrigin, const FVector& LineDirection)
-	{
-		const FVector SafeDir = LineDirection.GetSafeNormal();
-		const FVector OutClosestPoint = LineOrigin + (SafeDir * ((Point - LineOrigin) | SafeDir));
-		return (float)(OutClosestPoint - LineOrigin).Size();		// LWC_TODO: Precision loss
+		CurveList.Empty(Settings->MultiLineData.Num());
+		RangeList.Empty(Settings->MultiLineData.Num());
+		for (const FMultiLineData& data : Settings->MultiLineData)
+		{
+			float RangeMin = 0, RangMax = 0;
+			TArray<FCurveKey> arr;
+			if (data.UVCurve)
+			{
+				arr.Empty(data.UVCurve->FloatCurve.GetNumKeys());
+				for (const FRichCurveKey& key : data.UVCurve->FloatCurve.GetConstRefOfKeys())
+				{
+					arr.Emplace(FCurveKey(key.Time, key.Value, key.ArriveTangent, key.LeaveTangent));
+				}
+				data.UVCurve->FloatCurve.GetValueRange(RangeMin, RangMax);
+			}
+			else
+			{
+				arr.Empty(1);
+				arr.Emplace(FCurveKey(0, 0, 0, 0));
+			}
+			CurveList.Add(MoveTemp(arr));
+			RangeList.Emplace(float(RangMax - RangeMin));
+		}
 	};
 
-	for (int32 ElementID = 0; ElementID < VerticesNum; ElementID++)
+	if (Settings->LayoutType == EFDOverlayEditorAutoCalType::Line || Settings->LayoutType == EFDOverlayEditorAutoCalType::Point)
 	{
-		FVector2f UVElement = UVOverlay->GetElement(ElementID);
-		int32 vid = UVOverlay->GetParentVertex(ElementID);
-		FAppliedVertex vert;
-		vert.Position = FVector3f(AppliedCanonical->GetVertex(vid));
-		vert.Normal = AppliedCanonical->GetVertexNormal(vid);
-		vert.UV = FVector2f(0, 0);
-		//AppliedVertices.Emplace(FAppliedVertex(AppliedCanonical->GetVertex(i), AppliedCanonical->GetVertexNormal(i), /*AppliedCanonical->GetVertexUV(i)*/ FVector2f(0, 0)));
-		AppliedVertices.Add(vert);
+		float RangeMin = 0, RangMax = 0;
+		if (Settings->UVCurve)
+		{
+			CurveKeys.Empty(Settings->UVCurve->FloatCurve.GetNumKeys());
+			for (const FRichCurveKey& key : Settings->UVCurve->FloatCurve.GetConstRefOfKeys())
+			{
+				CurveKeys.Emplace(FCurveKey(key.Time, key.Value, key.ArriveTangent, key.LeaveTangent));
+			}
 
+			Settings->UVCurve->FloatCurve.GetValueRange(RangeMin, RangMax);
+		}
+		else
+		{
+			CurveKeys.Empty(1);
+			CurveKeys.Emplace(FCurveKey(0, 0, 0, 0));
+		}
+
+		CurveRange = RangMax - RangeMin;
+	}
+	else if(Settings->LayoutType == EFDOverlayEditorAutoCalType::MultiLine)
+	{
+		MultiInitialize(MultiLineCurveKeys, MultiLineCurveRange);
+	}
+	else if (Settings->LayoutType == EFDOverlayEditorAutoCalType::MultiPoint)
+	{
+		MultiInitialize(MultiPointCurveKeys, MultiPointCurveRange);
+	}
+}
+
+
+void UFDOverlayEditorAutoCalTool::InitializeBakeParams(FExtraParams& ExtraParams, int TargetID, FVector3f Origin, FVector3f Direction, const TArray<FCurveKey>& CurveKeysIn)
+{
+	ExtraParams.BakeBuffer = BakeBuffer[TargetID];
+	ExtraParams.MIDNum = Targets[TargetID]->MaxMaterialIndex + 1;
+	ExtraParams.TargetID = TargetID;
+	ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
+	ExtraParams.Params.CurveRange = CurveRange;
+	ExtraParams.CurveKeys = CurveKeysIn;
+	ExtraParams.Params.KeyNum = CurveKeys.Num();
+	ExtraParams.Params.GradientDir = Direction;
+	ExtraParams.Params.GradientOrigin = Origin;
+	ExtraParams.Params.UVCurveOrigin = FVector3f(GetUVOffsetOrigin(Settings->UVOffset, FVector(Origin), FVector(Direction)));
+
+	double GradientMax = 0;
+	for (FUVVertex& Vert : Vertices[TargetID])
+	{
 		// 计算 GradientMax
-		float d = GetDistanceAlongLine(FVector(vert.Position), FVector(ExtraParams.Params.GradientOrigin), FVector(ExtraParams.Params.GradientDir));
+		float d = GetDistanceAlongLine(FVector(Vert.Position), FVector(ExtraParams.Params.GradientOrigin), FVector(ExtraParams.Params.GradientDir));
 		if (GradientMax < d)
 		{
 			GradientMax = d;
 		}
 	}
+	
+	ExtraParams.Params.GradientMax = GradientMax;
+	ExtraParams.Params.TriangleNum = Triangles.Num();
+	ExtraParams.Params.VertexNum = Vertices[TargetID].Num();
+}
 
+template<typename T>
+void UFDOverlayEditorAutoCalTool::InitializeBakeParams(FMultiExtraParams& ExtraParams, int TargetID, const TArray<T>& DataList, const TArray<float>& MultiCurveRange, const TArray<TArray<FCurveKey>>& MultiCurveKeys)
+{
+	ExtraParams.BakeBuffer = BakeBuffer[TargetID];
+	ExtraParams.MIDNum = Targets[TargetID]->MaxMaterialIndex + 1;
+	ExtraParams.TargetID = TargetID;
+	ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
+	ExtraParams.CurveKeys = MultiCurveKeys;
 
-	Triangles.Reset(TrianglesNum);
-	float xmin = 1, ymin = 1;
-	int32 id = 0;
-	for (int32 i : AppliedCanonical->TriangleIndicesItr())
+	int i = 0;
+	for (const T& data : DataList)
 	{
-		if (UVOverlay->IsSetTriangle(i))
+		double GradientMax = 0;
+		for (FUVVertex& Vert : Vertices[TargetID])
 		{
-			//FIndex3i tri = AppliedCanonical->GetTriangle(i);
-			FIndex3i UVTri = UVOverlay->GetTriangle(i);
-
-			//FTriangle Triangle(trangle.A, trangle.B, trangle.C);
-			FTriangle triangle;
-			triangle.A = UVTri.A;
-			triangle.B = UVTri.B;
-			triangle.C = UVTri.C;
-			triangle.MID = AppliedCanonical->Attributes()->GetMaterialID()->GetValue(i);
-			//Triangles.Emplace(Triangle);
-			Triangles.Add(triangle);
-
-			//FIndex3i index3i = UVOverlay->GetTriangle(i);
-
-			for (int j = 0; j < 3; j++)
+			// 计算 GradientMax
+			float d = GetDistanceAlongLine(FVector(Vert.Position), FVector(data.LineOrigin), FVector(data.LineDirection));
+			if (GradientMax < d)
 			{
-				FVector2f uv = UVOverlay->GetElement(UVTri.ABC[j]);
-				AppliedVertices[/*UVOverlay->GetParentVertex(UVTri.ABC[j])*/UVTri.ABC[j]].UV = uv;
+				GradientMax = d;
+			}
+		}
+		ExtraParams.ParamsArr.Emplace(FMultiParamsArr(data.LineOrigin, data.LineDirection, GradientMax, 
+		FVector3f(GetUVOffsetOrigin(data.UVOffset, FVector(data.LineOrigin), FVector(data.LineDirection))), 
+			MultiCurveRange[i], MultiCurveKeys[i].Num()));
+		i++;
+	}
 
+	ExtraParams.Params.TriangleNum = Triangles.Num();
+	ExtraParams.Params.VertexNum = Vertices[TargetID].Num();
+
+	
+}
+
+void UFDOverlayEditorAutoCalTool::InitializeMeshResource()
+{
+	if (Vertices.Num() == Targets.Num() && Triangles.Num() == Targets.Num())
+	{
+		return;
+	}
+	else
+	{
+		check(Vertices.Num() == Triangles.Num());
+	}
+
+	for (TObjectPtr<UFDOverlayMeshInput> Target : Targets)
+	{
+		TArray<FUVVertex> VerticesIn;
+		TArray<FTriangle> TrianglesIn;
+
+		TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonical = Target->AppliedCanonical;
+		FDynamicMeshUVOverlay* UVOverlay = AppliedCanonical->Attributes()->GetUVLayer(0);
+
+		int VerticesNum = UVOverlay->ElementCount();
+		int TrianglesNum = AppliedCanonical->TriangleCount();
+
+		VerticesIn.Empty(VerticesNum);
+		for (int32 ElementID = 0; ElementID < VerticesNum; ElementID++)
+		{
+			FVector2f UVElement = UVOverlay->GetElement(ElementID);
+			int32 vid = UVOverlay->GetParentVertex(ElementID);
+			VerticesIn.Emplace(FUVVertex(FVector3f(AppliedCanonical->GetVertex(vid)), AppliedCanonical->GetVertexNormal(vid), FVector2f(0, 0)));
+		}
+
+		TrianglesIn.Empty(TrianglesNum);
+		for (int32 i : AppliedCanonical->TriangleIndicesItr())
+		{
+			if (UVOverlay->IsSetTriangle(i))
+			{
+				//FIndex3i tri = AppliedCanonical->GetTriangle(i);
+				FIndex3i UVTri = UVOverlay->GetTriangle(i);
+				TrianglesIn.Emplace(FTriangle(UVTri, AppliedCanonical->Attributes()->GetMaterialID()->GetValue(i)));
+				//FIndex3i index3i = UVOverlay->GetTriangle(i);
+				for (int j = 0; j < 3; j++)
+				{
+					FVector2f uv = UVOverlay->GetElement(UVTri.ABC[j]);
+					VerticesIn[/*UVOverlay->GetParentVertex(UVTri.ABC[j])*/UVTri.ABC[j]].UV = uv;
+				}
 			}
 		}
 
+		Vertices.Add(MoveTemp(VerticesIn));
+		Triangles.Add(MoveTemp(TrianglesIn));
 	}
 
-	ExtraParams.Params.GradientMax = GradientMax;
-	ExtraParams.Params.TriangleNum = Triangles.Num();
-	ExtraParams.Params.VertexNum = AppliedVertices.Num();
+
+
 }
 
-void UFDOverlayEditorAutoCalTool::InitializeBakePass(int32 MIDNum)
+void UFDOverlayEditorAutoCalTool::InitializeBakePass(int32 MIDNum, int TargetID)
 {
-	if (BakeBuffer.Num() >= MIDNum)
+	if (BakeBuffer.Num() >= TargetID)
 	{
-		for (UTextureRenderTarget2DArray* BakeRT : BakeBuffer)
-		{
-			BakeRT->Init(Settings->XYSize, Settings->XYSize, MIDNum, PF_FloatRGBA);
-		}
+		BakeBuffer[TargetID]->Init(Settings->XYSize, Settings->XYSize, MIDNum, PF_FloatRGBA);
 		return;
 	}
 	BakeBuffer.Reset(MIDNum);
@@ -231,59 +322,43 @@ void UFDOverlayEditorAutoCalTool::InitializeBakePass(int32 MIDNum)
 
 }
 
-void UFDOverlayEditorAutoCalTool::AddBakePass(TObjectPtr<UFDOverlayMeshInput> Target, int TargetID)
+template<typename T>
+void UFDOverlayEditorAutoCalTool::AddBakePass(T ExtraParams, int TargetID, EFDOverlayEditorAutoCalType Type)
 {
-	auto GetUVOffsetOrigin = [](const float& UVOffset, const FVector& LineOrigin, const FVector& LineDirection) {
-		FVector axis = UKismetMathLibrary::Normal(LineDirection, 0.0001);
-		FVector cross = UKismetMathLibrary::Cross_VectorVector(axis, FVector(0, 0, 1));
-		float degress = UKismetMathLibrary::RadiansToDegrees(UKismetMathLibrary::Acos(UKismetMathLibrary::Dot_VectorVector(axis, FVector(0, 0, 1))));
-		if (UKismetMathLibrary::Cross_VectorVector(cross, FVector(0, 1, 0)).Z > 0) // 假定 Y轴 为观察方向，与旋转轴叉积.z为负的，定义为逆时针旋转
-		{
-			degress = 360 - degress;
-		}
-		
-		const FVector v = UKismetMathLibrary::RotateAngleAxis(FVector(1, 0, 0), degress, cross);
-
-		// DEPRECATED. 不能取随机方向，否则UV轴就无法正常调整了。
-		// const FVector v = UKismetMathLibrary::RandomUnitVectorInConeInDegrees(LineOrigin, 90); 
-
-		FVector v2 = UKismetMathLibrary::RotateAngleAxis(v, UVOffset, axis);
-		return v2 * 100.0 + FVector(LineOrigin);
-	};
-	
-
-	FExtraParams ExtraParams;
 
 	//FString AssetPath = GetAssetPath(Settings->AssetPathFormat, Settings->Name, MID);
 	//ExtraParams.OutputTexture = FindOrCreate(AssetPath);
 
-	ExtraParams.BakeBuffer = BakeBuffer[TargetID];
-	ExtraParams.MIDNum = Target->MaxMaterialIndex + 1;
-	ExtraParams.TargetID = TargetID;
-	ExtraParams.Params.GradientOrigin = Settings->LineOrigin;
-	ExtraParams.Params.GradientDir = Settings->LineDirection;
-	ExtraParams.Params.UVCurveOrigin = FVector3f(GetUVOffsetOrigin(Settings->UVOffset, FVector(Settings->LineOrigin), FVector(Settings->LineDirection)));
-	ExtraParams.Params.CurveRange = CurveRange;
-	ExtraParams.Params.GradientMax = 0;
-	ExtraParams.Params.KeyNum = CurveKeys.Num();
-	ExtraParams.CurveKeys = CurveKeys;
-	ExtraParams.Size = FIntPoint(Settings->XYSize, Settings->XYSize);
-	
 
-	TArray<FAppliedVertex> AppliedVertices;
-	TArray<FTriangle> Triangles;
+	//FFDAutoCalCSInterface::Dispatch(MoveTemp(AppliedVertices), MoveTemp(Triangles), ExtraParams, [this](FExtraParams ExtraParams) {
+	//	UpdateOutputTexture(ExtraParams);
+	//	this->OnFinishCS.ExecuteIfBound(ExtraParams);
+	//	});
+	switch (Type)
+	{
+	case EFDOverlayEditorAutoCalType::Line:
+		FFDAutoCalCSInterface::Dispatch(Vertices[TargetID], Triangles[TargetID], ExtraParams, [this](FExtraParams ExtraParams) {
+			UpdateOutputTexture(ExtraParams);
+			this->OnFinishCS.ExecuteIfBound(ExtraParams);
+			});
+		break;
+	case EFDOverlayEditorAutoCalType::Point:
 
-	InitializeMeshResource(Target->AppliedCanonical, AppliedVertices, Triangles, ExtraParams);
+		break;
+	case EFDOverlayEditorAutoCalType::MultiLine:
 
-	FFDAutoCalCSInterface::Dispatch(MoveTemp(AppliedVertices), MoveTemp(Triangles), ExtraParams, [this](FExtraParams ExtraParams) {
-		UpdateOutputTexture(ExtraParams);
-		this->OnFinishCS.ExecuteIfBound(ExtraParams);
-		});
+		break;
+	case EFDOverlayEditorAutoCalType::MultiPoint:
+
+		break;
+	}
+
 }
 
 void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
 {	
 	InitializeCurve();
+	InitializeMeshResource();
 
 	switch (Settings->LayoutType)
 	{
@@ -291,11 +366,41 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 		for (int TargetID = 0; TargetID < Targets.Num(); TargetID++)
 		{
 			TObjectPtr<UFDOverlayMeshInput> Target = Targets[TargetID];
-			InitializeBakePass(Target->MaxMaterialIndex + 1);
-			AddBakePass(Target, TargetID);
+			InitializeBakePass(Target->MaxMaterialIndex + 1, TargetID);
+			FExtraParams ExtraParams;
+			InitializeBakeParams(ExtraParams, TargetID, Settings->LineOrigin, Settings->LineDirection, CurveKeys);
+			AddBakePass<FExtraParams>(ExtraParams, EFDOverlayEditorAutoCalType::Line);
 		}
 		break;
 	case EFDOverlayEditorAutoCalType::Point:
+		for (int TargetID = 0; TargetID < Targets.Num(); TargetID++)
+		{
+			TObjectPtr<UFDOverlayMeshInput> Target = Targets[TargetID];
+			InitializeBakePass(Target->MaxMaterialIndex + 1, TargetID);
+			FExtraParams ExtraParams;
+			InitializeBakeParams(ExtraParams, TargetID, Settings->PointOrigin, Settings->UVDirection, CurveKeys);
+			AddBakePass<FExtraParams>(ExtraParams, EFDOverlayEditorAutoCalType::Point);
+		}
+		break;
+	case EFDOverlayEditorAutoCalType::MultiLine:
+		for (int TargetID = 0; TargetID < Targets.Num(); TargetID++)
+		{
+			TObjectPtr<UFDOverlayMeshInput> Target = Targets[TargetID];
+			InitializeBakePass(Target->MaxMaterialIndex + 1, TargetID);
+			FMultiExtraParams ExtraParams;
+			InitializeBakeParams<FMultiLineData>(ExtraParams, TargetID, Settings->MultiLineData, MultiLineCurveRange, MultiLineCurveKeys);
+			AddBakePass<FMultiExtraParams>(ExtraParams, EFDOverlayEditorAutoCalType::MultiLine);
+		}
+		break;
+	case EFDOverlayEditorAutoCalType::MultiPoint:
+		for (int TargetID = 0; TargetID < Targets.Num(); TargetID++)
+		{
+			TObjectPtr<UFDOverlayMeshInput> Target = Targets[TargetID];
+			InitializeBakePass(Target->MaxMaterialIndex + 1, TargetID);
+			FMultiExtraParams ExtraParams;
+			InitializeBakeParams<FMultiLineData>(ExtraParams, TargetID, Settings->MultiPointData, MultiPointCurveRange, MultiPointCurveKeys);
+			AddBakePass<FMultiExtraParams>(ExtraParams, EFDOverlayEditorAutoCalType::MultiPoint);
+		}
 		break;
 	}
 
@@ -433,6 +538,32 @@ UTexture2D* UFDOverlayEditorAutoCalTool::FindOrCreate(const FString& AssetPath)
 	//
 
 	return Result;
+}
+
+FVector UFDOverlayEditorAutoCalTool::GetUVOffsetOrigin(const float& UVOffset, const FVector& LineOrigin, const FVector& LineDirection)
+{
+	FVector axis = UKismetMathLibrary::Normal(LineDirection, 0.0001);
+	FVector cross = UKismetMathLibrary::Cross_VectorVector(axis, FVector(0, 0, 1));
+	float degress = UKismetMathLibrary::RadiansToDegrees(UKismetMathLibrary::Acos(UKismetMathLibrary::Dot_VectorVector(axis, FVector(0, 0, 1))));
+	if (UKismetMathLibrary::Cross_VectorVector(cross, FVector(0, 1, 0)).Z > 0) // 假定 Y轴 为观察方向，与旋转轴叉积.z为负的，定义为逆时针旋转
+	{
+		degress = 360 - degress;
+	}
+
+	const FVector v = UKismetMathLibrary::RotateAngleAxis(FVector(1, 0, 0), degress, cross);
+
+	// DEPRECATED. 不能取随机方向，否则UV轴就无法正常调整了。
+	// const FVector v = UKismetMathLibrary::RandomUnitVectorInConeInDegrees(LineOrigin, 90); 
+
+	FVector v2 = UKismetMathLibrary::RotateAngleAxis(v, UVOffset, axis);
+	return v2 * 100.0 + FVector(LineOrigin);
+}
+
+float UFDOverlayEditorAutoCalTool::GetDistanceAlongLine(const FVector& Point, const FVector& LineOrigin, const FVector& LineDirection)
+{
+	const FVector SafeDir = LineDirection.GetSafeNormal();
+	const FVector OutClosestPoint = LineOrigin + (SafeDir * ((Point - LineOrigin) | SafeDir));
+	return (float)(OutClosestPoint - LineOrigin).Size();		// LWC_TODO: Precision loss
 }
 
 #undef LOCTEXT_NAMESPACE

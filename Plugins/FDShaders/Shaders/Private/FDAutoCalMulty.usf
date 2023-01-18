@@ -17,19 +17,24 @@ struct FTriangle
 };
 struct FParams
 {
-    float3 GradientOrigin;
+    int VertexNum;
+    int TriangleNum;
+};
+struct FParamsArr
+{
+	float3 GradientOrigin;
     float3 GradientDir;
     float GradientMax;
     float3 UVCurveOrigin;
     float CurveRange; // It is not the maximum value, but the maximum length. For example, the maximum length between -1 and 1 is 2
     int KeyNum;
-    int VertexNum;
-    int TriangleNum;
 };
+
 StructuredBuffer<FAppliedVertex> VerticesBuffer  	: register(t0);
 StructuredBuffer<FTriangle> TrianglesBuffer  	: register(t1);
 StructuredBuffer<FCurveKey> KeyBuffer : register(t2);
 StructuredBuffer<FParams> ParamsBuffer  	: register(t3);
+StructuredBuffer<FParamsArr> ParamsBufferArr  	: register(t4);
 RWTexture2DArray<float4> RDGRWTexture : register(u0);
 
 [numthreads(THREADGROUPSIZE_X, THREADGROUPSIZE_Y, 1)]

@@ -1,0 +1,64 @@
+
+float IsNegative(float valueIn)
+{
+	// Negative: 1
+	// Positive: 0
+    return 1 - saturate(ceil(valueIn));
+}
+
+float DistancePointToLine(float3 p, float3 o, float3 dir)
+{
+    dir = normalize(dir);
+    float3 v = p - o;
+    float d = cross(v, dir);
+    //return d / length(dir);
+    return d;
+}
+
+float DistancePointAlongLine(float3 p, float3 o, float3 dir)
+{
+    dir = normalize(dir);
+    float3 v = p - o;
+    float d = dot(v, dir);
+    //return d / length(dir);
+    return d;
+}
+
+float3 PointAtLine(float3 p, float3 o, float3 dir)
+{
+    float len = DistancePointAlongLine(p, o, dir);
+    return normalize(dir) * len + o;
+}
+
+// Barycentric coordinates
+bool IsPointInsideTriangle(float2 P, float2 A, float2 B, float2 C)
+{
+    float u = ((B.y - C.y) * (P.x - C.x) + (C.x - B.x) * (P.y - C.y)) / ((B.y - C.y) * (A.x - C.x) + (C.x - B.x) * (A.y - C.y));
+    float v = ((C.y - A.y) * (P.x - C.x) + (A.x - C.x) * (P.y - C.y)) / ((B.y - C.y) * (A.x - C.x) + (C.x - B.x) * (A.y - C.y));
+    float w = 1.0f - u - v;
+    return (u >= 0.0f) && (v >= 0.0f) && (w >= 0.0f) && (u <= 1.0f) && (v <= 1.0f) && (w <= 1.0f);
+}
+
+float3 GetPixelPos(float2 Pixeluv, float2 Auv, float2 Buv, float2 Cuv, float3 A, float3 B, float3 C, float2 UVScale)
+{
+    Pixeluv = Pixeluv * UVScale;
+    Auv = Auv * UVScale;
+    Buv = Buv * UVScale;
+    Cuv = Cuv * UVScale;
+    float3 w = normalize(cross(B - A, C - A));
+    float3 v = normalize(float3(B - A));
+    float3 u = cross(v, w);
+    
+    float4x4 ToWorld = float4x4(u.x, u.y, u.z, 0,
+                                v.x, v.y, v.z, 0,
+                                w.x, w.y, w.z, 0,
+                                A.x, A.y, A.z, 1);
+    // 需要判断 pixel 在 AB向量的哪一侧
+    //float isLeft =  length(normalize(cross(float3(Pixeluv - Auv, 0), float3(Buv - Auv, 0))) + w) - 1;
+    float Pv = dot(Pixeluv - Auv, normalize(Buv - Auv));
+    float3 uvNormal = cross(normalize(float3(Buv, 0) - float3(Auv, 0)), normalize(float3(Cuv, 0) - float3(Auv, 0)));
+    float Pu = dot(float3(Pixeluv - Auv, 0), normalize(cross(normalize(float3(Buv, 0) - float3(Auv, 0)), normalize(uvNormal))));
+    //DistancePointToLine(float3(Pixeluv, 0), float3(Auv, 0), float3(Buv - Auv, 0)) * isLeft;
+    float4 PixelLocal = float4(Pu, Pv, 0, 1);
+    return mul(PixelLocal, ToWorld).xyz;
+}
