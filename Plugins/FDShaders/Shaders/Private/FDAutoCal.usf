@@ -1,6 +1,5 @@
 #include "/Engine/Public/Platform.ush"
 #include "/Plugin/FDShaders/Private/BezierUtils.usf"
-#include "/Plugin/FDShaders/Private/FDMathUtils.usf"
 
 struct FAppliedVertex
 {
@@ -55,34 +54,36 @@ void CS(
         
         if (IsPointInsideTriangle(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV))
         {
-            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].w = 1;
-            float3 PixelPos = GetPixelPos(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV, 
+            float3 PixelPos = GetPixelPos(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV,
             VerticesBuffer[TrianglesBuffer[tri].A].Position, VerticesBuffer[TrianglesBuffer[tri].B].Position, VerticesBuffer[TrianglesBuffer[tri].C].Position, 100);
             
             float GradientScale = DistancePointAlongLine(PixelPos, GradientOrigin, GradientDir) / ParamsBuffer[0].GradientMax;
             
+            if (GradientScale >= 0)
+            {
             // Draw UV - V
-            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].y = saturate(GradientScale);
+                RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].y = saturate(GradientScale);
             
             // Draw UV - U
-            float AngleOffset = Eval(KeyBuffer, ParamsBuffer[0].KeyNum, GradientScale);
-            float3 UVCurvePoint = PointAtLine(PixelPos, ParamsBuffer[0].UVCurveOrigin, GradientDir);
-            float3 PixAtLinePoint = PointAtLine(PixelPos, GradientOrigin, GradientDir);
-            float3 A = UVCurvePoint - PixAtLinePoint;
-            float3 B = PixelPos - PixAtLinePoint;
-            float AngleScale = degrees(acos(dot(normalize(A), normalize(B)))); 
-            AngleScale = dot(normalize(cross(A, B)), GradientDir) * (180 * length((normalize(cross(A, B)) + GradientDir)) - AngleScale); // Since the dot can only calculate angles of 180 degrees at most, additional calculations are added to ensure that the result is 0 to 360
+                float AngleOffset = Eval(KeyBuffer, 0, ParamsBuffer[0].KeyNum, GradientScale);
+                float3 UVCurvePoint = PointAtLine(PixelPos, ParamsBuffer[0].UVCurveOrigin, GradientDir);
+                float3 PixAtLinePoint = PointAtLine(PixelPos, GradientOrigin, GradientDir);
+                float3 A = UVCurvePoint - PixAtLinePoint;
+                float3 B = PixelPos - PixAtLinePoint;
+                float AngleScale = degrees(acos(dot(normalize(A), normalize(B))));
+                AngleScale = dot(normalize(cross(A, B)), GradientDir) * (180 * length((normalize(cross(A, B)) + GradientDir)) - AngleScale); // Since the dot can only calculate angles of 180 degrees at most, additional calculations are added to ensure that the result is 0 to 360
             // if > 0, AngleOffset = AngleOffset; 
             // if < 0, -40 => 320, -370 => 710, -500 => 580;
             // AngleOffset = 30, same layer: 10 => 40, 350 => 20
             // AngleOffset = -30, same layer: 10 => 340, 350 => 320
             // Step 1
-            AngleOffset = floor(abs(AngleOffset - fmod(AngleOffset, 360.0))) + fmod(AngleOffset, 360.0) + IsNegative(AngleOffset) * 360;
+                AngleOffset = floor(abs(AngleOffset - fmod(AngleOffset, 360.0))) + fmod(AngleOffset, 360.0) + IsNegative(AngleOffset) * 360;
             // Step 2
-            AngleScale = fmod(AngleOffset + AngleScale + IsNegative(AngleOffset + AngleScale) * 360, 360.0);
+                AngleScale = fmod(AngleOffset + AngleScale + IsNegative(AngleOffset + AngleScale) * 360, 360.0);
             
-            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].x = AngleScale / 360.0;
-
+                RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].x = AngleScale / 360.0;
+                RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].w = 1;
+            }
         }
         
     }

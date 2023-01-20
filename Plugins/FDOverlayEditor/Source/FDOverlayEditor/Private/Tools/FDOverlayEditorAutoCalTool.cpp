@@ -205,7 +205,7 @@ void UFDOverlayEditorAutoCalTool::InitializeBakeParams(FExtraParams& ExtraParams
 	}
 	
 	ExtraParams.Params.GradientMax = GradientMax;
-	ExtraParams.Params.TriangleNum = Triangles.Num();
+	ExtraParams.Params.TriangleNum = Triangles[TargetID].Num();
 	ExtraParams.Params.VertexNum = Vertices[TargetID].Num();
 }
 
@@ -237,9 +237,11 @@ void UFDOverlayEditorAutoCalTool::InitializeBakeParams(FMultiExtraParams& ExtraP
 		i++;
 	}
 
-	ExtraParams.Params.TriangleNum = Triangles.Num();
+	ExtraParams.Params.ParamsArrNum = i;
+	ExtraParams.Params.TriangleNum = Triangles[TargetID].Num();
 	ExtraParams.Params.VertexNum = Vertices[TargetID].Num();
-
+	ExtraParams.Params.VRICFlag = Settings->VRICType == EVRICType::PLD ? 1:0;
+	ExtraParams.Params.VRIC = Settings->VRIC;
 	
 }
 
@@ -264,7 +266,7 @@ void UFDOverlayEditorAutoCalTool::InitializeMeshResource()
 
 		int VerticesNum = UVOverlay->ElementCount();
 		int TrianglesNum = AppliedCanonical->TriangleCount();
-
+		UE_LOG(LogTemp, Warning, TEXT("JTJ TriangleNum: %d"), TrianglesNum);
 		VerticesIn.Empty(VerticesNum);
 		for (int32 ElementID = 0; ElementID < VerticesNum; ElementID++)
 		{
@@ -300,7 +302,7 @@ void UFDOverlayEditorAutoCalTool::InitializeMeshResource()
 
 void UFDOverlayEditorAutoCalTool::InitializeBakePass(int32 MIDNum, int TargetID)
 {
-	if (BakeBuffer.Num() >= TargetID)
+	if (BakeBuffer.Num() >= TargetID + 1)
 	{
 		BakeBuffer[TargetID]->Init(Settings->XYSize, Settings->XYSize, MIDNum, PF_FloatRGBA);
 		return;
@@ -337,16 +339,20 @@ void UFDOverlayEditorAutoCalTool::AddBakePass(T ExtraParams, int TargetID, EFDOv
 	switch (Type)
 	{
 	case EFDOverlayEditorAutoCalType::Line:
-		FFDAutoCalCSInterface::Dispatch(Vertices[TargetID], Triangles[TargetID], ExtraParams, [this](FExtraParams ExtraParams) {
-			UpdateOutputTexture(ExtraParams);
-			this->OnFinishCS.ExecuteIfBound(ExtraParams);
+		FFDAutoCalCSInterface::Dispatch<T, EFDAutoCalCSType::LineCS>(Vertices[TargetID], Triangles[TargetID], ExtraParams, [this](T ExtraParams) {
+			UpdateOutputTexture(ExtraParams.BakeBuffer, ExtraParams.TargetID);
+			this->OnFinishCS.ExecuteIfBound();
 			});
+			
 		break;
 	case EFDOverlayEditorAutoCalType::Point:
 
 		break;
 	case EFDOverlayEditorAutoCalType::MultiLine:
-
+		FFDAutoCalCSInterface::Dispatch<T, EFDAutoCalCSType::MultiLineCS>(Vertices[TargetID], Triangles[TargetID], ExtraParams, [this](T ExtraParams) {
+			UpdateOutputTexture(ExtraParams.BakeBuffer, ExtraParams.TargetID);
+			this->OnFinishCS.ExecuteIfBound();
+			});
 		break;
 	case EFDOverlayEditorAutoCalType::MultiPoint:
 
@@ -369,7 +375,7 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 			InitializeBakePass(Target->MaxMaterialIndex + 1, TargetID);
 			FExtraParams ExtraParams;
 			InitializeBakeParams(ExtraParams, TargetID, Settings->LineOrigin, Settings->LineDirection, CurveKeys);
-			AddBakePass<FExtraParams>(ExtraParams, EFDOverlayEditorAutoCalType::Line);
+			AddBakePass<FExtraParams>(ExtraParams, TargetID, EFDOverlayEditorAutoCalType::Line);
 		}
 		break;
 	case EFDOverlayEditorAutoCalType::Point:
@@ -379,27 +385,35 @@ void UFDOverlayEditorAutoCalTool::OnPropertyModified(UObject* PropertySet, FProp
 			InitializeBakePass(Target->MaxMaterialIndex + 1, TargetID);
 			FExtraParams ExtraParams;
 			InitializeBakeParams(ExtraParams, TargetID, Settings->PointOrigin, Settings->UVDirection, CurveKeys);
-			AddBakePass<FExtraParams>(ExtraParams, EFDOverlayEditorAutoCalType::Point);
+			AddBakePass<FExtraParams>(ExtraParams, TargetID, EFDOverlayEditorAutoCalType::Point);
 		}
 		break;
 	case EFDOverlayEditorAutoCalType::MultiLine:
+		if (Settings->MultiLineData.Num() == 0)
+		{
+			break;
+		}
 		for (int TargetID = 0; TargetID < Targets.Num(); TargetID++)
 		{
 			TObjectPtr<UFDOverlayMeshInput> Target = Targets[TargetID];
 			InitializeBakePass(Target->MaxMaterialIndex + 1, TargetID);
 			FMultiExtraParams ExtraParams;
 			InitializeBakeParams<FMultiLineData>(ExtraParams, TargetID, Settings->MultiLineData, MultiLineCurveRange, MultiLineCurveKeys);
-			AddBakePass<FMultiExtraParams>(ExtraParams, EFDOverlayEditorAutoCalType::MultiLine);
+			AddBakePass<FMultiExtraParams>(ExtraParams, TargetID, EFDOverlayEditorAutoCalType::MultiLine);
 		}
 		break;
 	case EFDOverlayEditorAutoCalType::MultiPoint:
+		if (Settings->MultiPointData.Num() == 0)
+		{
+			break;
+		}
 		for (int TargetID = 0; TargetID < Targets.Num(); TargetID++)
 		{
 			TObjectPtr<UFDOverlayMeshInput> Target = Targets[TargetID];
 			InitializeBakePass(Target->MaxMaterialIndex + 1, TargetID);
 			FMultiExtraParams ExtraParams;
-			InitializeBakeParams<FMultiLineData>(ExtraParams, TargetID, Settings->MultiPointData, MultiPointCurveRange, MultiPointCurveKeys);
-			AddBakePass<FMultiExtraParams>(ExtraParams, EFDOverlayEditorAutoCalType::MultiPoint);
+			InitializeBakeParams<FMultiPointData>(ExtraParams, TargetID, Settings->MultiPointData, MultiPointCurveRange, MultiPointCurveKeys);
+			AddBakePass<FMultiExtraParams>(ExtraParams, TargetID, EFDOverlayEditorAutoCalType::MultiPoint);
 		}
 		break;
 	}
@@ -424,14 +438,14 @@ bool UFDOverlayEditorAutoCalTool::CanAccept() const
 	return true;
 }
 
-void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(FExtraParams ExtraParams)
+void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(UTextureRenderTarget2DArray* BakeBufferIn, int TargetID)
 {
 	UTexture2DArray* NewObj = nullptr;
-	FString AssetPath = GetAssetPath(Settings->AssetPathFormat, TEXT("FDOverlayArray"), ExtraParams.TargetID);
+	FString AssetPath = GetAssetPath(Settings->AssetPathFormat, TEXT("FDOverlayArray"), TargetID);
 
 	UPackage* Package = CreatePackage(*AssetPath);
 	/*UTexture2D* Result = NewObject<UTexture2D>(Package, *FString(TEXT("OutputTex")), RF_Public | RF_Standalone | RF_Transactional);*/
-	NewObj = ExtraParams.BakeBuffer->ConstructTexture2DArray(Package, FString(FPathViews::GetCleanFilename(AssetPath)), RF_Public | RF_Standalone | RF_Transactional);
+	NewObj = BakeBufferIn->ConstructTexture2DArray(Package, FString(FPathViews::GetCleanFilename(AssetPath)), RF_Public | RF_Standalone | RF_Transactional);
 	if (NewObj)
 	{
 		// Notify the asset registry
@@ -445,7 +459,7 @@ void UFDOverlayEditorAutoCalTool::UpdateOutputTexture(FExtraParams ExtraParams)
 	//ExtraParams.OutputTexture->MarkPackageDirty();
 	
 
-	Targets[ExtraParams.TargetID]->ShowToMesh(NewObj);
+	Targets[TargetID]->ShowToMesh(NewObj);
 
 	UE_LOG(LogTemp, Warning, TEXT("Finish This CS And CallBack"));
 }
@@ -545,7 +559,7 @@ FVector UFDOverlayEditorAutoCalTool::GetUVOffsetOrigin(const float& UVOffset, co
 	FVector axis = UKismetMathLibrary::Normal(LineDirection, 0.0001);
 	FVector cross = UKismetMathLibrary::Cross_VectorVector(axis, FVector(0, 0, 1));
 	float degress = UKismetMathLibrary::RadiansToDegrees(UKismetMathLibrary::Acos(UKismetMathLibrary::Dot_VectorVector(axis, FVector(0, 0, 1))));
-	if (UKismetMathLibrary::Cross_VectorVector(cross, FVector(0, 1, 0)).Z > 0) // 假定 Y轴 为观察方向，与旋转轴叉积.z为负的，定义为逆时针旋转
+	if (UKismetMathLibrary::Cross_VectorVector(cross, FVector(0, 1, 0)).Z <= 0) // 假定 Y轴 为观察方向，与旋转轴叉积.z为负的，定义为逆时针旋转
 	{
 		degress = 360 - degress;
 	}

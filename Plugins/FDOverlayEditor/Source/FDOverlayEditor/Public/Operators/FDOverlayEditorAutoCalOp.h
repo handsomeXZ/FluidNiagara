@@ -17,6 +17,12 @@ enum class EFDOverlayEditorAutoCalType : uint8
 	MultiLine,
 	MultiPoint
 };
+UENUM()
+enum class EVRICType : uint8
+{
+	PLD,
+	PPD
+};
 USTRUCT()
 struct FMultiLineData
 {
@@ -83,6 +89,15 @@ public:
 	FString Name = TEXT("OutputName");
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	FString AssetPathFormat = TEXT("{AssetFolder}/{AssetName}_Texture2D_{OutputName}_{MIDNum}");
-
+	
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	EVRICType VRICType = EVRICType::PLD;
+	/**
+	 * 0 ~ 1. 
+	 * Vector relative interference coefficient. 
+	 * This Name looks good, hahaha!!
+	 */
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampMin = "0", ClampMax = "1", EditCondition = "VRICType == EVRICType::PLD && (LayoutType == EFDOverlayEditorAutoCalType::MultiLine || LayoutType == EFDOverlayEditorAutoCalType::MultiPoint)"))
+	float VRIC = 0;
 };
 

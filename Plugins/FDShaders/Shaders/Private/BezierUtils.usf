@@ -1,3 +1,5 @@
+#include "/Plugin/FDShaders/Private/FDMathUtils.usf"
+
 struct FCurveKey
 {
     float Time;
@@ -6,10 +8,6 @@ struct FCurveKey
     float LeaveTangent;
 };
 
-bool IsNearlyZero(float Value)
-{
-    return abs(Value) < 0.000001;
-}
 float FloatBezierInterp(float P0, float P1, float P2, float P3, float Alpha)
 {
 	const float P01 = lerp(P0, P1, Alpha);
@@ -43,7 +41,7 @@ float EvalForTwoKeyBuffer(const FCurveKey Key1, const FCurveKey Key2, const floa
 		return Key1.Value;
 	}
 }
-float Eval(StructuredBuffer<FCurveKey> KeyBuffer, uint NumKeyBufferIn, float TimeIn)
+float Eval(StructuredBuffer<FCurveKey> KeyBuffer, uint StartIndex, uint NumKeyBufferIn, float TimeIn)
 {
     uint NumKeyBuffer = NumKeyBufferIn;
 
@@ -53,35 +51,35 @@ float Eval(StructuredBuffer<FCurveKey> KeyBuffer, uint NumKeyBufferIn, float Tim
     {
 		// If no KeyBuffer in curve, return the Default value. 
     }
-    else if (NumKeyBuffer < 2 || (TimeIn <= KeyBuffer[0].Time))
+    else if (NumKeyBuffer < 2 || (TimeIn <= KeyBuffer[StartIndex].Time))
     {
         if (NumKeyBuffer > 1)
         {
-            float DT = KeyBuffer[1].Time - KeyBuffer[0].Time;
+            float DT = KeyBuffer[StartIndex + 1].Time - KeyBuffer[StartIndex].Time;
 
             if (IsNearlyZero(DT))
             {
-                InterpVal = KeyBuffer[0].Value;
+                InterpVal = KeyBuffer[StartIndex].Value;
             }
             else
             {
-                float DV = KeyBuffer[1].Value - KeyBuffer[0].Value;
+                float DV = KeyBuffer[StartIndex + 1].Value - KeyBuffer[StartIndex].Value;
                 float Slope = DV / DT;
 
-                InterpVal = Slope * (TimeIn - KeyBuffer[0].Time) + KeyBuffer[0].Value;
+                InterpVal = Slope * (TimeIn - KeyBuffer[StartIndex].Time) + KeyBuffer[StartIndex].Value;
             }
         }
         else
         {
 			// Otherwise if constant or in a cycle or oscillate, always use the first key value
-            InterpVal = KeyBuffer[0].Value;
+            InterpVal = KeyBuffer[StartIndex].Value;
         }
     }
-    else if (TimeIn < KeyBuffer[NumKeyBuffer - 1].Time)
+    else if (TimeIn < KeyBuffer[StartIndex + NumKeyBuffer - 1].Time)
     {
 		// perform a lower bound to get the second of the interpolation nodes
-        int first = 1;
-        int last = NumKeyBuffer - 1;
+        int first = StartIndex + 1;
+        int last = StartIndex + NumKeyBuffer - 1;
         int count = last - first;
 
         while (count > 0)
@@ -104,18 +102,18 @@ float Eval(StructuredBuffer<FCurveKey> KeyBuffer, uint NumKeyBufferIn, float Tim
     }
     else
     {
-        float DT = KeyBuffer[NumKeyBuffer - 2].Time - KeyBuffer[NumKeyBuffer - 1].Time;
+        float DT = KeyBuffer[StartIndex + NumKeyBuffer - 2].Time - KeyBuffer[StartIndex + NumKeyBuffer - 1].Time;
 
         if (IsNearlyZero(DT))
         {
-            InterpVal = KeyBuffer[NumKeyBuffer - 1].Value;
+            InterpVal = KeyBuffer[StartIndex + NumKeyBuffer - 1].Value;
         }
         else
         {
-            float DV = KeyBuffer[NumKeyBuffer - 2].Value - KeyBuffer[NumKeyBuffer - 1].Value;
+            float DV = KeyBuffer[StartIndex + NumKeyBuffer - 2].Value - KeyBuffer[StartIndex + NumKeyBuffer - 1].Value;
             float Slope = DV / DT;
 
-            InterpVal = Slope * (TimeIn - KeyBuffer[NumKeyBuffer - 1].Time) + KeyBuffer[NumKeyBuffer - 1].Value;
+            InterpVal = Slope * (TimeIn - KeyBuffer[StartIndex + NumKeyBuffer - 1].Time) + KeyBuffer[StartIndex + NumKeyBuffer - 1].Value;
         }
     }
 

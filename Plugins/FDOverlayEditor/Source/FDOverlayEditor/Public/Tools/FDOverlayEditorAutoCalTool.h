@@ -4,9 +4,8 @@
 
 #include "InteractiveTool.h"
 #include "InteractiveToolBuilder.h"
-#include "FDAutoCalCS.h"
 #include "GeometryBase.h"
-
+#include "FDAutoCalCS.h"
 #include "FDOverlayEditorAutoCalTool.generated.h"
 
 
@@ -14,6 +13,7 @@ class UFDOverlayMeshInput;
 class UFDOverlayEditorAutoCalProperties;
 class UTextureRenderTarget2DArray;
 enum class EFDOverlayEditorAutoCalType : uint8;
+
 PREDECLARE_GEOMETRY(class FDynamicMesh3);
 
 /**
@@ -54,9 +54,9 @@ public:
 
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 
-	void UpdateOutputTexture(FExtraParams ExtraParams);
+	void UpdateOutputTexture(UTextureRenderTarget2DArray* BakeBuffer, int TargetID);
 	
-	DECLARE_DELEGATE_OneParam(FOnFinishCS, FExtraParams ExtraParams);
+	DECLARE_DELEGATE(FOnFinishCS);
 	FOnFinishCS OnFinishCS;
 
 protected:
@@ -64,7 +64,7 @@ protected:
 	void InitializeCurve();
 	void InitializeMeshResource();
 	void InitializeBakePass(int32 MIDNum, int TargetID);
-	void InitializeBakeParams(FExtraParams& ExtraParams, int TargetID, FVector3f Origin, FVector3f Direction, const TArray<FCurveKey>& CurveKeysIn);
+	void InitializeBakeParams(struct FExtraParams& ExtraParams, int TargetID, FVector3f Origin, FVector3f Direction, const TArray<FCurveKey>& CurveKeysIn);
 	template<typename T>
 	void InitializeBakeParams(FMultiExtraParams& ExtraParams, int TargetID, const TArray<T>& DataList, const TArray<float>& MultiCurveRange, const TArray<TArray<FCurveKey>>& MultiCurveKeys);
 	template<typename T>

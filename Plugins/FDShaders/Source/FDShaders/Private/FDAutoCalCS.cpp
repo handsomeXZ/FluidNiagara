@@ -120,69 +120,23 @@ private:
 IMPLEMENT_GLOBAL_SHADER(FFDAutoCalMultiCS<1>, "/Plugin/FDShaders/Private/FDAutoCalMulty.usf", "CS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FFDAutoCalMultiCS<2>, "/Plugin/FDShaders/Private/FDAutoCalMulty.usf", "CS", SF_Compute);
 
-
-template<typename T>
-void FFDAutoCalCSInterface::Dispatch_GameThread(
+template<int32 ShaderMode>
+static void Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList,
 	TArray<FUVVertex>& Vertices,
 	TArray<FTriangle>& Triangles,
-	T ExtraParams,
-	TFunction<void(T ExtraParams)> CallBack
-)
-{
-	check(IsInGameThread());
-
-	std::atomic<bool> bDidGPUFinish(false);
-
-	ENQUEUE_RENDER_COMMAND(FDAutoCalCommand)(
-		[&Vertices, &Triangles, ExtraParams, CallBack, &bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
-		{
-			Dispatch_RenderThread(RHICmdList, Vertices, Triangles, ExtraParams, CallBack, bDidGPUFinish);
-
-		});
-	// Block thread until GPU has finished
-	//std::atomic<bool> bDidGPUFinish(false);
-	//ENQUEUE_RENDER_COMMAND(ForwardGPU_FDAutoCalCommand)(
-	//	[&bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
-	//	{
-	//		bDidGPUFinish = true;
-	//	}
-	//);
-	
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// 可以借助 FDelegateGraphTask、FGraphEventRef 或者 ENQUEUE_RENDER_COMMAND 来实现渲染回调，但它们似乎不能保证在游戏线程执行
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-	while (!bDidGPUFinish)
-	{
-		FPlatformProcess::Sleep(0.1e-3);
-	}
-	CallBack(ExtraParams);
-}
-
-template<typename T>
-void FFDAutoCalCSInterface::Dispatch(
-	TArray<FUVVertex>& Vertices,
-	TArray<FTriangle>& Triangles,
-	T ExtraParams,
-	TFunction<void(T ExtraParams)> CallBack
-)
-{
-
-	Dispatch_GameThread(Vertices, Triangles, ExtraParams, CallBack);
-	
-}
-
-
-
-void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList, TArray<FUVVertex>& Vertices, TArray<FTriangle>& Triangles, FExtraParams ExtraParams, TFunction<void(FExtraParams ExtraParams)> CallBack, std::atomic<bool>& bDidGPUFinish)
+	FExtraParams ExtraParams,
+	TFunction<void(FExtraParams ExtraParams)> CallBack,
+	std::atomic<bool>& bDidGPUFinish)
 {
 	check(IsInRenderingThread());
+	check(ShaderMode == 1 || ShaderMode == 2);
+
 	FRDGBuilder GraphBuilder(RHICmdList);
 
 	FRDGBufferRef VerticesBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FUVVertex), Vertices.Num()), TEXT("FluidDynamicOverlay.VerticesBuffer"));
 	FRDGBufferRef TrianglesBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FTriangle), Triangles.Num()), TEXT("FluidDynamicOverlay.TrianglesBuffer"));
-	FRDGBufferRef KeyBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FCurveKey), ExtraParams.CurveKeys.Num()), TEXT("FluidDynamicOverlay.VerticesBuffer"));
-	FRDGBufferRef ParamsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FParams), 1), TEXT("FluidDynamicOverlay.TrianglesBuffer"));
+	FRDGBufferRef KeyBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FCurveKey), ExtraParams.CurveKeys.Num()), TEXT("FluidDynamicOverlay.KeyBuffer"));
+	FRDGBufferRef ParamsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FParams), 1), TEXT("FluidDynamicOverlay.ParamsBuffer"));
 
 	GraphBuilder.QueueBufferUpload(VerticesBuffer, Vertices.GetData(), sizeof(FUVVertex) * Vertices.Num(), ERDGInitialDataFlags::None);
 	GraphBuilder.QueueBufferUpload(TrianglesBuffer, Triangles.GetData(), sizeof(FTriangle) * Triangles.Num(), ERDGInitialDataFlags::None);
@@ -207,9 +161,8 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 		DECLARE_GPU_STAT(FDAutoCalCS)
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FDAutoCalCS);
 		RDG_EVENT_SCOPE(GraphBuilder, "FluidDynamicOverlayComputeShader");
-		TShaderMapRef<FFDAutoCalCS<0>>ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-
-		FFDAutoCalCS<0>::FParameters* PassParameters = GraphBuilder.AllocParameters<FFDAutoCalCS<0>::FParameters>();
+		TShaderMapRef<FFDAutoCalCS<ShaderMode>>ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		FFDAutoCalCS<ShaderMode>::FParameters* PassParameters = GraphBuilder.AllocParameters<FFDAutoCalCS<ShaderMode>::FParameters>();
 		PassParameters->VerticesBuffer = GraphBuilder.CreateSRV(VerticesBuffer);
 		PassParameters->TrianglesBuffer = GraphBuilder.CreateSRV(TrianglesBuffer);
 		PassParameters->KeyBuffer = GraphBuilder.CreateSRV(KeyBuffer);
@@ -268,7 +221,168 @@ void FFDAutoCalCSInterface::Dispatch_RenderThread(FRHICommandListImmediate& RHIC
 
 }
 
+template<int32 ShaderMode>
+static void Dispatch_RenderThread(FRHICommandListImmediate& RHICmdList,
+	TArray<FUVVertex>& Vertices,
+	TArray<FTriangle>& Triangles,
+	FMultiExtraParams ExtraParams,
+	TFunction<void(FMultiExtraParams ExtraParams)> CallBack,
+	std::atomic<bool>& bDidGPUFinish)
+{
+	check(IsInRenderingThread());
+	check(ShaderMode == 1 || ShaderMode == 2);
+
+	FRDGBuilder GraphBuilder(RHICmdList);
+
+	FRDGBufferRef VerticesBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FUVVertex), Vertices.Num()), TEXT("FluidDynamicOverlay.VerticesBuffer"));
+	FRDGBufferRef TrianglesBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FTriangle), Triangles.Num()), TEXT("FluidDynamicOverlay.TrianglesBuffer"));
+	FRDGBufferRef KeyBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FCurveKey), ExtraParams.CurveKeys.Num()), TEXT("FluidDynamicOverlay.KeyBuffer"));
+	FRDGBufferRef ParamsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FMultiParams), 1), TEXT("FluidDynamicOverlay.ParamsBuffer"));
+	FRDGBufferRef ParamsArrBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FMultiParamsArr), ExtraParams.ParamsArr.Num()), TEXT("FluidDynamicOverlay.ParamsArrBuffer"));
+
+	GraphBuilder.QueueBufferUpload(VerticesBuffer, Vertices.GetData(), sizeof(FUVVertex) * Vertices.Num(), ERDGInitialDataFlags::None);
+	GraphBuilder.QueueBufferUpload(TrianglesBuffer, Triangles.GetData(), sizeof(FTriangle) * Triangles.Num(), ERDGInitialDataFlags::None);
+	GraphBuilder.QueueBufferUpload(KeyBuffer, ExtraParams.CurveKeys.GetData(), sizeof(FCurveKey) * ExtraParams.CurveKeys.Num(), ERDGInitialDataFlags::None);
+	GraphBuilder.QueueBufferUpload(ParamsArrBuffer, ExtraParams.ParamsArr.GetData(), sizeof(FMultiParamsArr) * ExtraParams.ParamsArr.Num(), ERDGInitialDataFlags::None);
+	GraphBuilder.QueueBufferUpload(ParamsBuffer, &(ExtraParams.Params), sizeof(FMultiParams), ERDGInitialDataFlags::None);
 
 
+	FRDGTextureDesc Desc = FRDGTextureDesc::Create2DArray(ExtraParams.Size, EPixelFormat::PF_FloatRGBA, FClearValueBinding::Black,
+		TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV, ExtraParams.MIDNum);
+	FRDGTextureRef RDGRWTexture = GraphBuilder.CreateTexture(Desc, TEXT("FluidDynamicOverlayOutputPooledTexture"));
+
+	{
+		DECLARE_GPU_STAT(FDAutoCalMultiCS)
+		RDG_GPU_STAT_SCOPE(GraphBuilder, FDAutoCalMultiCS);
+		RDG_EVENT_SCOPE(GraphBuilder, "FluidDynamicOverlayMultiComputeShader");
+		TShaderMapRef<FFDAutoCalMultiCS<ShaderMode>>ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+
+		FFDAutoCalMultiCS<ShaderMode>::FParameters* PassParameters = GraphBuilder.AllocParameters<FFDAutoCalMultiCS<ShaderMode>::FParameters>();
+		PassParameters->VerticesBuffer = GraphBuilder.CreateSRV(VerticesBuffer);
+		PassParameters->TrianglesBuffer = GraphBuilder.CreateSRV(TrianglesBuffer);
+		PassParameters->KeyBuffer = GraphBuilder.CreateSRV(KeyBuffer);
+		PassParameters->ParamsBuffer = GraphBuilder.CreateSRV(ParamsBuffer);
+		PassParameters->ParamsBufferArr = GraphBuilder.CreateSRV(ParamsArrBuffer);
+		PassParameters->RDGRWTexture = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(RDGRWTexture));
+
+		FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(ExtraParams.Size, FComputeShaderUtils::kGolden2DGroupSize);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("FluidDynamicOverlayMultiComputeShader"),
+			ERDGPassFlags::AsyncCompute,
+			ComputeShader,
+			PassParameters,
+			GroupCount
+		);
+	}
+
+	{
+
+		AddReadbackTexturePass(
+			GraphBuilder,
+			RDG_EVENT_NAME("CopyRDGToTexture2D"),
+			RDGRWTexture,
+			[RDGRWTexture, ExtraParams, &bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
+			{
+				if (RDGRWTexture->GetRHI())
+				{
+					FTextureRenderTarget2DArrayResource* TextureResource = (FTextureRenderTarget2DArrayResource*)ExtraParams.BakeBuffer->GetRenderTargetResource();
+
+					FRHICopyTextureInfo CopyInfo;
+					CopyInfo.NumMips = 1;
+					CopyInfo.NumSlices = ExtraParams.MIDNum;
+					RHICmdList.CopyTexture(
+						RDGRWTexture->GetRHI(),
+						TextureResource->GetRenderTargetTexture(),
+						CopyInfo);
+
+					bDidGPUFinish.store(true);
+				}
+			});
+	}
+	GraphBuilder.Execute();
+}
+
+void FFDAutoCalCSInterface::Dispatch_GameThread(
+	EFDAutoCalCSType ShaderMode,
+	TArray<FUVVertex>& Vertices,
+	TArray<FTriangle>& Triangles,
+	FExtraParams ExtraParams,
+	TFunction<void(FExtraParams ExtraParams)> CallBack)
+{
+
+	check(IsInGameThread());
+
+	std::atomic<bool> bDidGPUFinish(false);
+
+	ENQUEUE_RENDER_COMMAND(FDAutoCalCommand)(
+		[&Vertices, &Triangles, ExtraParams, CallBack, &bDidGPUFinish, ShaderMode](FRHICommandListImmediate& RHICmdList)
+		{
+			switch (ShaderMode)
+			{
+				case EFDAutoCalCSType::LineCS:
+					Dispatch_RenderThread<1>(RHICmdList, Vertices, Triangles, ExtraParams, CallBack, bDidGPUFinish);
+					break;
+				case EFDAutoCalCSType::PointCS:
+
+					break;
+			}
+
+		});
+	// Block thread until GPU has finished
+	//std::atomic<bool> bDidGPUFinish(false);
+	//ENQUEUE_RENDER_COMMAND(ForwardGPU_FDAutoCalCommand)(
+	//	[&bDidGPUFinish](FRHICommandListImmediate& RHICmdList)
+	//	{
+	//		bDidGPUFinish = true;
+	//	}
+	//);
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// 可以借助 FDelegateGraphTask、FGraphEventRef 或者 ENQUEUE_RENDER_COMMAND 来实现渲染回调，但它们似乎不能保证在游戏线程执行
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	while (!bDidGPUFinish)
+	{
+		FPlatformProcess::Sleep(0.1e-3);
+	}
+	CallBack(ExtraParams);
+};
+
+void FFDAutoCalCSInterface::Dispatch_GameThread(
+	EFDAutoCalCSType ShaderMode,
+	TArray<FUVVertex>& Vertices,
+	TArray<FTriangle>& Triangles,
+	FMultiExtraParams ExtraParams,
+	TFunction<void(FMultiExtraParams ExtraParams)> CallBack)
+{
+
+	check(IsInGameThread());
+
+	std::atomic<bool> bDidGPUFinish(false);
+
+	ENQUEUE_RENDER_COMMAND(FDAutoCalCommand)(
+		[&Vertices, &Triangles, ExtraParams, CallBack, &bDidGPUFinish, ShaderMode](FRHICommandListImmediate& RHICmdList)
+		{
+			switch (ShaderMode)
+			{
+			case EFDAutoCalCSType::MultiLineCS:
+				Dispatch_RenderThread<1>(RHICmdList, Vertices, Triangles, ExtraParams, CallBack, bDidGPUFinish);
+				break;
+			case EFDAutoCalCSType::MultiPointCS:
+
+				break;
+			}
+
+		});
+
+	while (!bDidGPUFinish)
+	{
+		FPlatformProcess::Sleep(0.1e-3);
+		//UE_LOG(LogTemp, Warning, TEXT("JTJWaiting"));
+	}
+	CallBack(ExtraParams);
+};
 
 #undef LOCTEXT_NAMESPACE
