@@ -109,7 +109,7 @@ struct FFluidNDIParametersCS_Grid2DCollection : public FNiagaraDataInterfacePara
 /**
  * It will only save as Int type, please handle it yourself, currently the experimental version
  */
-UCLASS(EditInlineNew, Category = "Grid", meta = (DisplayName = "FluidGrid2D<Int>", Experimental), Blueprintable, BlueprintType)
+UCLASS(EditInlineNew, Category = "Grid", meta = (DisplayName = "FluidGrid2DShared", Experimental), Blueprintable, BlueprintType)
 class FLUIDDYNAMIC_API UFluidNDIGrid2DCollection : public UNiagaraDataInterfaceGrid2D
 {
 	GENERATED_UCLASS_BODY()
@@ -264,8 +264,11 @@ public:
 
 	static const FString AnonymousAttributeString;
 
-	static const FName SetSharedVector4ValueFunctionName;
-	static const FName GetSharedVector4ValueFunctionName;
+	// GroupShared
+	static const FName SetSharedVector3ValueFunctionName;
+	static const FName GetSharedVector3ValueFunctionName;
+	static const FName SetSharedVector2ValueFunctionName;
+	static const FName GetSharedVector2ValueFunctionName;
 
 #if WITH_EDITOR
 	virtual bool SupportsSetupAndTeardownHLSL() const { return true; }

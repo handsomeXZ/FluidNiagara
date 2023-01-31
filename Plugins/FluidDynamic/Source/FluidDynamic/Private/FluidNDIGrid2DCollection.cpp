@@ -91,8 +91,10 @@ const TCHAR* UFluidNDIGrid2DCollection::VectorComponentNames[] = { TEXT(".x"), T
 
 const FName UFluidNDIGrid2DCollection::SampleGridFunctionName("SampleGrid");
 
-const FName UFluidNDIGrid2DCollection::SetSharedVector4ValueFunctionName("SetSharedVector4Value");
-const FName UFluidNDIGrid2DCollection::GetSharedVector4ValueFunctionName("GetSharedVector4Value");
+const FName UFluidNDIGrid2DCollection::SetSharedVector3ValueFunctionName("SetSharedVector3Value");
+const FName UFluidNDIGrid2DCollection::GetSharedVector3ValueFunctionName("GetSharedVector3Value");
+const FName UFluidNDIGrid2DCollection::SetSharedVector2ValueFunctionName("SetSharedVector2Value");
+const FName UFluidNDIGrid2DCollection::GetSharedVector2ValueFunctionName("GetSharedVector2Value");
 
 FNiagaraVariableBase UFluidNDIGrid2DCollection::ExposedRTVar;
 
@@ -111,11 +113,14 @@ struct FNiagaraGridCollection2DDIFunctionVersion
 
 bool UFluidNDIGrid2DCollection::CanCreateVarFromFuncName(const FName& FuncName)
 {
-	if (FuncName == UFluidNDIGrid2DCollection::SetSharedVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector4ValueFunctionName	|| FuncName == UFluidNDIGrid2DCollection::GetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector4FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector4FunctionName)
+	if (FuncName == UFluidNDIGrid2DCollection::SetVector4ValueFunctionName	|| FuncName == UFluidNDIGrid2DCollection::GetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector4FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector4FunctionName)
 		return true;
-	else if (FuncName == UFluidNDIGrid2DCollection::SetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector3FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVectorFunctionName)
+	else if (FuncName == UFluidNDIGrid2DCollection::SetSharedVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector3ValueFunctionName || 
+		FuncName == UFluidNDIGrid2DCollection::SetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector3FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVectorFunctionName)
 		return true;
-	else if (FuncName == UFluidNDIGrid2DCollection::SetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector2FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector2DFunctionName)
+	else if (FuncName == UFluidNDIGrid2DCollection::SetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector2DValueFunctionName || 
+		FuncName == UFluidNDIGrid2DCollection::SetSharedVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector2ValueFunctionName ||
+		FuncName == UFluidNDIGrid2DCollection::GetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector2FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector2DFunctionName)
 		return true;
 	else if (FuncName == UFluidNDIGrid2DCollection::SetFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridFloatFunctionName       || FuncName == UFluidNDIGrid2DCollection::GetPreviousFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridFloatFunctionName )
 		return true;
@@ -124,11 +129,14 @@ bool UFluidNDIGrid2DCollection::CanCreateVarFromFuncName(const FName& FuncName)
 
 FNiagaraTypeDefinition UFluidNDIGrid2DCollection::GetValueTypeFromFuncName(const FName& FuncName)
 {
-	if (FuncName == UFluidNDIGrid2DCollection::SetSharedVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector4FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector4FunctionName)
+	if (FuncName == UFluidNDIGrid2DCollection::SetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector4FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector4FunctionName)
 		return FNiagaraTypeDefinition::GetVec4Def();
-	else if (FuncName == UFluidNDIGrid2DCollection::SetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector3FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVectorFunctionName)
+	else if (FuncName == UFluidNDIGrid2DCollection::SetSharedVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector3ValueFunctionName || 
+		FuncName == UFluidNDIGrid2DCollection::SetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector3FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVectorFunctionName)
 		return FNiagaraTypeDefinition::GetVec3Def();
-	else if (FuncName == UFluidNDIGrid2DCollection::SetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector2FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector2DFunctionName)
+	else if (FuncName == UFluidNDIGrid2DCollection::SetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector2DValueFunctionName || 
+		FuncName == UFluidNDIGrid2DCollection::SetSharedVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector2ValueFunctionName ||
+		FuncName == UFluidNDIGrid2DCollection::GetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector2FunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector2DFunctionName)
 		return FNiagaraTypeDefinition::GetVec2Def();
 	else if (FuncName == UFluidNDIGrid2DCollection::SetFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridFloatFunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridFloatFunctionName)
 		return FNiagaraTypeDefinition::GetFloatDef();
@@ -138,11 +146,14 @@ FNiagaraTypeDefinition UFluidNDIGrid2DCollection::GetValueTypeFromFuncName(const
 
 int32 UFluidNDIGrid2DCollection::GetComponentCountFromFuncName(const FName& FuncName)
 {
-	if (FuncName == UFluidNDIGrid2DCollection::SetSharedVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector4FunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector4AttributeIndexFunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector4FunctionName)
+	if (FuncName == UFluidNDIGrid2DCollection::SetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector4FunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector4AttributeIndexFunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVector4ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector4FunctionName)
 		return 4;
-	else if (FuncName == UFluidNDIGrid2DCollection::SetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector3FunctionName || FuncName == UFluidNDIGrid2DCollection::GetVectorAttributeIndexFunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVectorFunctionName)
+	else if (FuncName == UFluidNDIGrid2DCollection::SetSharedVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector3ValueFunctionName ||
+		FuncName == UFluidNDIGrid2DCollection::SetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector3ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector3FunctionName || FuncName == UFluidNDIGrid2DCollection::GetVectorAttributeIndexFunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousVectorValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVectorFunctionName)
 		return 3;
-	else if (FuncName == UFluidNDIGrid2DCollection::SetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector2FunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector2DAttributeIndexFunctionName|| FuncName == UFluidNDIGrid2DCollection::GetPreviousVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector2DFunctionName)
+	else if (FuncName == UFluidNDIGrid2DCollection::SetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SetVector2DValueFunctionName || 
+		FuncName == UFluidNDIGrid2DCollection::SetSharedVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetSharedVector2ValueFunctionName ||
+		FuncName == UFluidNDIGrid2DCollection::GetVector2ValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridVector2FunctionName || FuncName == UFluidNDIGrid2DCollection::GetVector2DAttributeIndexFunctionName|| FuncName == UFluidNDIGrid2DCollection::GetPreviousVector2DValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridVector2DFunctionName)
 		return 2;
 	else if (FuncName == UFluidNDIGrid2DCollection::SetFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::GetFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SampleGridFloatFunctionName || FuncName == UFluidNDIGrid2DCollection::GetPreviousFloatValueFunctionName || FuncName == UFluidNDIGrid2DCollection::SamplePreviousGridFloatFunctionName|| FuncName == UFluidNDIGrid2DCollection::GetFloatAttributeIndexFunctionName)
 		return 1;
@@ -895,10 +906,10 @@ void UFluidNDIGrid2DCollection::GetFunctions(TArray<FNiagaraFunctionSignature>& 
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = SetSharedVector4ValueFunctionName;
+		Sig.Name = SetSharedVector3ValueFunctionName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Grid")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("IndexX")));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec4Def(), TEXT("Value")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Value")));
 
 		Sig.bMemberFunction = true;
 		Sig.bRequiresContext = false;
@@ -909,17 +920,17 @@ void UFluidNDIGrid2DCollection::GetFunctions(TArray<FNiagaraFunctionSignature>& 
 		Sig.bSupportsCPU = false;
 		Sig.bSupportsGPU = true;
 #if WITH_EDITORONLY_DATA
-		Sig.Description = NSLOCTEXT("Niagara", "NiagaraDataInterfaceGridColl2D_SetSharedVector4Value", "Sets a Vector4 value on the Grid by Attribute name.");
+		Sig.Description = NSLOCTEXT("Niagara", "NiagaraDataInterfaceGridColl2D_SetSharedVector3Value", "Sets a Vector3 value to ShareMemory.");
 #endif
 		OutFunctions.Add(Sig);
 	}
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = GetSharedVector4ValueFunctionName;
+		Sig.Name = GetSharedVector3ValueFunctionName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Grid")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("IndexX")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec4Def(), TEXT("Value")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Value")));
 
 		Sig.bMemberFunction = true;
 		Sig.bRequiresContext = false;
@@ -928,11 +939,49 @@ void UFluidNDIGrid2DCollection::GetFunctions(TArray<FNiagaraFunctionSignature>& 
 		Sig.bSupportsCPU = false;
 		Sig.bSupportsGPU = true;
 #if WITH_EDITORONLY_DATA
-		Sig.Description = NSLOCTEXT("Niagara", "NiagaraDataInterfaceGridColl2D_GetSharedVector4Value", "Gets a Vector4 value on the Grid by Attribute name. Note that this is the value from the previous execution stage.");
+		Sig.Description = NSLOCTEXT("Niagara", "NiagaraDataInterfaceGridColl2D_GetSharedVector3Value", "gets a Vector3 value from ShareMemory.");
+#endif
+		OutFunctions.Add(Sig);
+	}
+	{
+		FNiagaraFunctionSignature Sig;
+		Sig.Name = SetSharedVector2ValueFunctionName;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Grid")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("IndexX")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec2Def(), TEXT("Value")));
+
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = true;
+		Sig.bRequiresExecPin = true;
+		Sig.bWriteFunction = true;
+		Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Particle;
+		Sig.bSupportsCPU = false;
+		Sig.bSupportsGPU = true;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = NSLOCTEXT("Niagara", "NiagaraDataInterfaceGridColl2D_SetSharedVector2Value", "Sets a Vector2 value to ShareMemory.");
 #endif
 		OutFunctions.Add(Sig);
 	}
 
+	{
+		FNiagaraFunctionSignature Sig;
+		Sig.Name = GetSharedVector2ValueFunctionName;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Grid")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("IndexX")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec2Def(), TEXT("Value")));
+
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = true;
+		Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Particle;
+		Sig.bSupportsCPU = false;
+		Sig.bSupportsGPU = true;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = NSLOCTEXT("Niagara", "NiagaraDataInterfaceGridColl2D_GetSharedVector2Value", "gets a Vector2 value from ShareMemory.");
+#endif
+		OutFunctions.Add(Sig);
+	}
 #if WITH_EDITORONLY_DATA
 	for (int32 i = StartIndex; i < OutFunctions.Num(); i++)
 	{
@@ -1037,12 +1086,18 @@ void UFluidNDIGrid2DCollection::GetParameterDefinitionHLSL(const FNiagaraDataInt
 		int4 {AttributeIndicesName}[{AttributeInt4Count}];
 		int {NumAttributesName};
 	)");
-	int index = 0;
-	if (OutHLSL.Find(TEXT(R"(groupshared float4 gfluidshared)")) == -1) {
-		OutHLSL += TEXT(R"(groupshared float4 gfluidshared[THREADGROUP_SIZE];)");
+
+	if (OutHLSL.Find(TEXT(R"(groupshared float3 gfluidsharedVector3)")) == -1) {
+		OutHLSL += TEXT(R"(groupshared float3 gfluidsharedVector3[THREADGROUP_SIZE_X];)");
 	}
 	else {
-		UE_LOG(LogTemp, Warning, TEXT("HLSL Index: %d"), OutHLSL.Find(TEXT(R"(groupshared float4 gfluidshared)")));
+		UE_LOG(LogTemp, Warning, TEXT("HLSL Index: %d"), OutHLSL.Find(TEXT(R"(groupshared float3 gfluidsharedVector3)")));
+	}
+	if (OutHLSL.Find(TEXT(R"(groupshared float2 gfluidsharedVector2)")) == -1) {
+		OutHLSL += TEXT(R"(groupshared float2 gfluidsharedVector2[THREADGROUP_SIZE_X];)");
+	}
+	else {
+		UE_LOG(LogTemp, Warning, TEXT("HLSL Index: %d"), OutHLSL.Find(TEXT(R"(groupshared float2 gfluidsharedVector2)")));
 	}
 
 	// If we use an int array for the attribute indices, the shader compiler will actually use int4 due to the packing rules,
@@ -1288,13 +1343,25 @@ void UFluidNDIGrid2DCollection::WriteAttributeGetIndexHLSL(const FNiagaraDataInt
 
 // GroupShared
 void UFluidNDIGrid2DCollection::WriteSetSharedHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, const FNiagaraDataInterfaceGeneratedFunction& FunctionInfo, int FunctionInstanceIndex, int32 InNumChannels, FString& OutHLSL) {
-	FString FormatBounds = TEXT(R"(
-			void {FunctionName}(int In_IndexX, float4 In_Value)
+	FString FormatBounds;
+	if (InNumChannels == 3)
+	{
+		FormatBounds = TEXT(R"(
+			void {FunctionName}(int In_IndexX, float3 In_Value)
 			{
-				gfluidshared[In_IndexX]= In_Value;
+				gfluidsharedVector3[In_IndexX]= In_Value;
 			}
 		)");
-
+	}
+	else if (InNumChannels == 2)
+	{
+		FormatBounds = TEXT(R"(
+			void {FunctionName}(int In_IndexX, float2 In_Value)
+			{
+				gfluidsharedVector2[In_IndexX]= In_Value;
+			}
+		)");
+	}
 
 	TMap<FString, FStringFormatArg> ArgsBounds = {
 		{TEXT("FunctionName"),				FunctionInfo.InstanceName},
@@ -1303,13 +1370,25 @@ void UFluidNDIGrid2DCollection::WriteSetSharedHLSL(const FNiagaraDataInterfaceGP
 }
 // GroupShared
 void UFluidNDIGrid2DCollection::WriteGetSharedHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, const FNiagaraDataInterfaceGeneratedFunction& FunctionInfo, int FunctionInstanceIndex, int32 InNumChannels, FString& OutHLSL) {
-	FString FormatBounds = TEXT(R"(
-			void {FunctionName}(int In_IndexX, out float4 Out_Val)
+	FString FormatBounds;
+	if (InNumChannels == 3)
+	{
+		FormatBounds = TEXT(R"(
+			void {FunctionName}(int In_IndexX, out float3 Out_Val)
 			{
-				Out_Val = gfluidshared[In_IndexX];
+				Out_Val = gfluidsharedVector3[In_IndexX];
 			}
 		)");
-
+	}
+	else if (InNumChannels == 2)
+	{
+		FormatBounds = TEXT(R"(
+			void {FunctionName}(int In_IndexX, out float2 Out_Val)
+			{
+				Out_Val = gfluidsharedVector2[In_IndexX];
+			}
+		)");
+	}
 
 	TMap<FString, FStringFormatArg> ArgsBounds = {
 		{TEXT("FunctionName"),				FunctionInfo.InstanceName},
@@ -1531,14 +1610,24 @@ bool UFluidNDIGrid2DCollection::GetFunctionHLSL(const FNiagaraDataInterfaceGPUPa
 		return true;
 	}
 	// GroupShared
-	else if (FunctionInfo.DefinitionName == GetSharedVector4ValueFunctionName)
+	else if (FunctionInfo.DefinitionName == GetSharedVector3ValueFunctionName)
 	{
-		WriteGetSharedHLSL(ParamInfo, FunctionInfo, FunctionInstanceIndex, 4, OutHLSL);
+		WriteGetSharedHLSL(ParamInfo, FunctionInfo, FunctionInstanceIndex, 3, OutHLSL);
 		return true;
 	}
-	else if (FunctionInfo.DefinitionName == SetSharedVector4ValueFunctionName)
+	else if (FunctionInfo.DefinitionName == SetSharedVector3ValueFunctionName)
 	{
-		WriteSetSharedHLSL(ParamInfo, FunctionInfo, FunctionInstanceIndex, 4, OutHLSL);
+		WriteSetSharedHLSL(ParamInfo, FunctionInfo, FunctionInstanceIndex, 3, OutHLSL);
+		return true;
+	}
+	else if (FunctionInfo.DefinitionName == GetSharedVector2ValueFunctionName)
+	{
+		WriteGetSharedHLSL(ParamInfo, FunctionInfo, FunctionInstanceIndex, 2, OutHLSL);
+		return true;
+	}
+	else if (FunctionInfo.DefinitionName == SetSharedVector2ValueFunctionName)
+	{
+		WriteSetSharedHLSL(ParamInfo, FunctionInfo, FunctionInstanceIndex, 2, OutHLSL);
 		return true;
 	}
 
