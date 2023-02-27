@@ -318,7 +318,7 @@ void UFDOverlayEditorAutoCalTool::InitializeBakePass(int32 MIDNum, int TargetID)
 	RTbuffer->AddToRoot();
 	RTbuffer->ClearColor = FLinearColor::Black;
 	RTbuffer->TargetGamma = 1.0f;
-
+	check((Settings->XYSize > 0) && (Settings->XYSize > 0) && (MIDNum > 0));
 	RTbuffer->Init(Settings->XYSize, Settings->XYSize, MIDNum, PF_FloatRGBA);
 	BakeBuffer.Add(RTbuffer);
 

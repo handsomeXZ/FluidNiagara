@@ -121,13 +121,17 @@ UFDOverlayEditorMode::UFDOverlayEditorMode()
 		false);
 	struct FConstructorStatics
 	{
-		ConstructorHelpers::FObjectFinder<UMaterial> MaterialAsset;
+		ConstructorHelpers::FObjectFinder<UMaterial> AppliedMaterialAsset;
+		ConstructorHelpers::FObjectFinder<UMaterial> UnwrapMaterialAsset;
 		FConstructorStatics()
-			:MaterialAsset(TEXT("Material'/FDOverlayEditor/M_Default.M_Default'")) {}
+			:AppliedMaterialAsset(TEXT("Material'/FDOverlayEditor/M_Default.M_Default'")), 
+			UnwrapMaterialAsset(TEXT("Material'/FDOverlayEditor/M_Default_UV.M_Default_UV'")){}
+			// 由于 UVUnwrap 可能存在背面三角，所以需要材质开启 “双面”
 	};
 	static FConstructorStatics ConstructorStatics;
 
-	DefaultBakeMaterialInterface = ConstructorStatics.MaterialAsset.Object;
+	DefaultBakeAppliedMaterialInterface = ConstructorStatics.AppliedMaterialAsset.Object;
+	DefaultBakeUnwrapMaterialInterface = ConstructorStatics.UnwrapMaterialAsset.Object;
 }
 
 
@@ -173,8 +177,8 @@ void UFDOverlayEditorMode::CreateToolkit()
 
 void UFDOverlayEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextStore,
 	const TArray<TObjectPtr<UObject>>& AssetsIn, const TArray<FTransform>& TransformsIn, 
-	FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager, 
-	UFDOverlayViewportButtonsAPI& ViewportButtonsAPI, UFDOverlayLive2DViewportAPI& FDOverlayLive2DViewportAPI)
+	FEditorViewportClient& LivePreviewViewportClient, FEditorViewportClient& Live2DViewportClient, 
+	FAssetEditorModeManager& LivePreviewModeManager, UFDOverlayViewportButtonsAPI& ViewportButtonsAPI)
 {
 	using namespace FDEditorModeLocals;
 	UFDOverlayAssetInputsContext* AssetInputsContext = ContextStore.FindContext<UFDOverlayAssetInputsContext>();
@@ -209,6 +213,23 @@ void UFDOverlayEditorMode::InitializeAssetEditorContexts(UContextObjectStore& Co
 		ContextStore.AddContextObject(Live3DPreviewAPI);
 	}
 
+	UFDOverlayLive2DViewportAPI* Live2DViewportAPI = ContextStore.FindContext<UFDOverlayLive2DViewportAPI>();
+	if (!Live2DViewportAPI)
+	{
+		Live2DViewportAPI = NewObject<UFDOverlayLive2DViewportAPI>();
+		Live2DViewportAPI->InitializeDelegate(
+			[Live2DViewportClientPtr = &Live2DViewportClient]() -> FOnSwitchMaterialIDMode& {
+				return ((FFDOverlay2DViewportClient*)Live2DViewportClientPtr)->OnSwitchMaterialIDMode();
+			},
+			[Live2DViewportClientPtr = &Live2DViewportClient]() -> FOnMaterialIDAdd& {
+				return ((FFDOverlay2DViewportClient*)Live2DViewportClientPtr)->OnMaterialIDAdd();
+			},
+			[Live2DViewportClientPtr = &Live2DViewportClient]() -> FOnMaterialIDSub& {
+				return ((FFDOverlay2DViewportClient*)Live2DViewportClientPtr)->OnMaterialIDSub();
+			}
+		);
+		ContextStore.AddContextObject(Live2DViewportAPI);
+	}
 	//// Prep the editor-only context that we use to pass things to the mode.
 	//if (!ContextStore.FindContext<UFDOverlayInitializationContext>())
 	//{
@@ -221,12 +242,6 @@ void UFDOverlayEditorMode::InitializeAssetEditorContexts(UContextObjectStore& Co
 	{
 		ContextStore.AddContextObject(&ViewportButtonsAPI);
 	}
-
-	if (!ContextStore.FindContext<UFDOverlayLive2DViewportAPI>())
-	{
-		ContextStore.AddContextObject(&FDOverlayLive2DViewportAPI);
-	}
-
 
 }
 //void UFDOverlayEditorMode::Render(IToolsContextRenderAPI* RenderAPI)
@@ -369,6 +384,7 @@ void UFDOverlayEditorMode::InitializeTargets()
 	UFDOverlayEditorSubsystem* UVSubsystem = GEditor->GetEditorSubsystem<UFDOverlayEditorSubsystem>();
 	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
 	UFDOverlayLive3DPreviewAPI* Live3DPreviewAPI = ContextStore->FindContext<UFDOverlayLive3DPreviewAPI>();
+	UFDOverlayLive2DViewportAPI* Live2DViewportAPI = ContextStore->FindContext<UFDOverlayLive2DViewportAPI>();
 
 	UVSubsystem->BuildTargets(OriginalObjectsToEdit, GetToolTargetRequirements(), ToolTargets);
 
@@ -407,7 +423,7 @@ void UFDOverlayEditorMode::InitializeTargets()
 
 		if (!ToolInputObject->InitializeMeshes(ToolTargets[AssetID], AppliedCanonicalMeshes[AssetID],
 			AppliedPreviews[AssetID], AssetID, DefaultUVLayerIndex,
-			GetWorld(), LivePreviewWorld, ToolSetupUtil::GetDefaultWorkingMaterial(GetToolManager()), DefaultBakeMaterialInterface, 
+			GetWorld(), LivePreviewWorld, DefaultBakeAppliedMaterialInterface, DefaultBakeUnwrapMaterialInterface, 
 			FUVEditorUXSettings::UVToVertPosition, FUVEditorUXSettings::VertPositionToUV))
 		{
 			return;
@@ -419,12 +435,16 @@ void UFDOverlayEditorMode::InitializeTargets()
 		}
 		
 		Live3DPreviewAPI->OnToggleOverlayChannelDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::ChangeDynamicMaterialDisplayChannel);
-		//ToolInputObject->UnwrapPreview->PreviewMesh->SetMaterial(
-		//	0, ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(
-		//		GetToolManager(),
-		//		FUVEditorUXSettings::GetTriangleColorByTargetIndex(AssetID),
-		//		FUVEditorUXSettings::UnwrapTriangleDepthOffset,
-		//		FUVEditorUXSettings::UnwrapTriangleOpacity));
+		Live2DViewportAPI->OnSwitchMaterialIDModeDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::SwitchDynamicMaterialDisplayIDMode);
+		Live2DViewportAPI->OnMaterialIDAddDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::AddDynamicMaterialDisplayID);
+		Live2DViewportAPI->OnMaterialIDSubDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::SubDynamicMaterialDisplayID);
+
+		ToolInputObject->UnwrapPreview->PreviewMesh->SetMaterial(
+			0, ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(
+				GetToolManager(),
+				FUVEditorUXSettings::GetTriangleColorByTargetIndex(AssetID),
+				FUVEditorUXSettings::UnwrapTriangleDepthOffset,
+				FUVEditorUXSettings::UnwrapTriangleOpacity));
 
 		// 我们并不需要线框显示模式，如果有需要后面可以参考下列注释代码。
 		//// Set up the wireframe display of the unwrapped mesh.

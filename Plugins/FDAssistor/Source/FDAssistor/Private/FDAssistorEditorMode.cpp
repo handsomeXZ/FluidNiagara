@@ -68,7 +68,7 @@ void UFDAssistorEditorMode::CreateToolkit()
 
 void UFDAssistorEditorMode::RegisterFDEditor()
 {
-	
+
 	const FFDAssistorEditorModeCommands& ToolManagerCommands = FFDAssistorEditorModeCommands::Get();
 	UFDOverlayEditorSubsystem* FDOverlaySubsystem = GEditor->GetEditorSubsystem<UFDOverlayEditorSubsystem>();
 

@@ -90,7 +90,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	FString AssetPathFormat = TEXT("{AssetFolder}/{AssetName}_Texture2D_{OutputName}_{MIDNum}");
 	
-	UPROPERTY(EditAnywhere, Category = "Settings")
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "LayoutType == EFDOverlayEditorAutoCalType::MultiLine || LayoutType == EFDOverlayEditorAutoCalType::MultiPoint"))
 	EVRICType VRICType = EVRICType::PLD;
 	/**
 	 * 0 ~ 1. 

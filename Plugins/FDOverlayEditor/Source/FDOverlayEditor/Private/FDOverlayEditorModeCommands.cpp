@@ -38,6 +38,10 @@ void FFDOverlayEditorModeCommands::RegisterCommands()
 	UI_COMMAND(YChannel, "YChannel", "Display Y channel", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(ZChannel, "ZChannel", "Display Z channel", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(WChannel, "WChannel", "Display W channel", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(Compact,  "Compact",  "Display UV in a compact way", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(Iterable, "Iterable", "Display UV in a Iterable way", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(Exploded, "Exploded", "Display UV in a Exploded way", EUserInterfaceActionType::ToggleButton, FInputChord());
+
 }
 
 TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> FFDOverlayEditorModeCommands::GetCommands()

@@ -9,7 +9,7 @@
 #include "ToolTargets/SkeletalMeshToolTarget.h"
 
 #include "FDOverlayAssetEditor.h"
-//#include "FDOverlayEditorMode.h"
+#include "FDOverlayEditorMode.h"
 
 void UFDOverlayEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {

@@ -9,76 +9,56 @@
 //#include "UVEditor2DViewportBehaviorTargets.h" // FUVEditor2DScrollBehaviorTarget, FUVEditor2DMouseWheelZoomBehaviorTarget
 #include "Context/FDOverlayViewportButtonsAPI.h" // UFDOverlayViewportButtonsAPI::ESelectionMode
 
-class UCanvas;
+class SWidget;
 class UFDOverlayLive2DViewportAPI;
 
+enum EFDOverlay2DViewportClientDisplayMode : uint8 {
+	Compact = 0,
+	Iterable = 1,
+	Exploded = 2,
+};
+
+DECLARE_MULTICAST_DELEGATE(FOnMaterialIDAdd)
+DECLARE_MULTICAST_DELEGATE(FOnMaterialIDSub)
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnSwitchMaterialIDMode, uint8)
 /**
- * Client used to display a 2D view of the UV's, implemented by using a perspective viewport with a locked
- * camera.
+ * Client used to display a 2D view of the UV's
  */
 class FDOVERLAYEDITOR_API FFDOverlay2DViewportClient : public FEditorViewportClient/*, public IInputBehaviorSource*/
 {
 public:
-	FFDOverlay2DViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene,
-		const TWeakPtr<SEditorViewport>& InEditorViewportWidget, UFDOverlayViewportButtonsAPI* ViewportButtonsAPI, UFDOverlayLive2DViewportAPI* live2DViewportAPI);
+	FFDOverlay2DViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene = nullptr,
+		const TWeakPtr<SEditorViewport>& InEditorViewportWidget = nullptr, UFDOverlayViewportButtonsAPI* ViewportButtonsAPI = nullptr);
 
 	virtual ~FFDOverlay2DViewportClient() {}
-
-	bool AreSelectionButtonsEnabled() const;
-	void SetSelectionMode(UFDOverlayViewportButtonsAPI::ESelectionMode NewMode);
-	UFDOverlayViewportButtonsAPI::ESelectionMode GetSelectionMode() const;
-	bool AreWidgetButtonsEnabled() const;
-
-	void SetLocationGridSnapEnabled(bool bEnabled);
-	bool GetLocationGridSnapEnabled();
-	void SetLocationGridSnapValue(float SnapValue);
-	float GetLocationGridSnapValue();
-	void SetRotationGridSnapEnabled(bool bEnabled);
-	bool GetRotationGridSnapEnabled();
-	void SetRotationGridSnapValue(float SnapValue);
-	float GetRotationGridSnapValue();
-	void SetScaleGridSnapEnabled(bool bEnabled);
-	bool GetScaleGridSnapEnabled();
-	void SetScaleGridSnapValue(float SnapValue);
-	float GetScaleGridSnapValue();
 
 	// FEditorViewportClient
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 
-	//virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
+	bool AreWidgetButtonsEnabled() const;
+
 	virtual bool ShouldOrbitCamera() const override;
 	bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override;
 	void SetWidgetMode(UE::Widget::EWidgetMode NewMode) override;
 	UE::Widget::EWidgetMode GetWidgetMode() const override;	
-	//void DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas) override;
+public:
+	bool GetDisplayMode(EFDOverlay2DViewportClientDisplayMode Mode);
+	
+	void ToggleDisplayMode(EFDOverlay2DViewportClientDisplayMode Mode);
+	FOnSwitchMaterialIDMode& OnSwitchMaterialIDMode() { return OnSwitchMaterialIDModeDelegate; }
 
+	FOnMaterialIDAdd& OnMaterialIDAdd(){ return OnMaterialIDAddDelegate; }
+	void ExecuteOnMaterialIDAdd();
+	FOnMaterialIDSub& OnMaterialIDSub() { return OnMaterialIDSubDelegate; }
+	void ExecuteOnMaterialIDSub();
 
-	// Overriding base class visibility
-	using FEditorViewportClient::OverrideNearClipPlane;
-
-	// IInputBehaviorSource
-	//virtual const UInputBehaviorSet* GetInputBehaviors() const override;
-
-	// FGCObject
-	//virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-
-protected:
-	//void DrawGrid(const FSceneView* View, FPrimitiveDrawInterface* PDI);
-	//void DrawGridRulers(FViewport& InViewport, FSceneView& View, UCanvas& Canvas);
-	//void DrawUDIMLabels(FViewport& InViewport, FSceneView& View, UCanvas& Canvas);
-
+private:
+	EFDOverlay2DViewportClientDisplayMode DisplayMode = Compact;
 	// These get added in AddReferencedObjects for memory management
-	UInputBehaviorSet* BehaviorSet;
 	UFDOverlayViewportButtonsAPI* ViewportButtonsAPI;
-	UFDOverlayLive2DViewportAPI* Live2DViewportAPI;
-
-	bool bDrawGridRulers = true;
-	bool bDrawGrid = true;
-	UCanvas* CanvasObject;
-
-	// Note that it's generally less hassle if the unique ptr types are complete here,
-	// not forward declared, else we get compile errors if their destruction shows up
-	// anywhere in the header.
-	//TUniquePtr<FUVEditor2DScrollBehaviorTarget> ScrollBehaviorTarget;
-	//TUniquePtr<FUVEditor2DMouseWheelZoomBehaviorTarget> ZoomBehaviorTarget;
+	
+	FOnSwitchMaterialIDMode OnSwitchMaterialIDModeDelegate;
+	FOnMaterialIDAdd OnMaterialIDAddDelegate;
+	FOnMaterialIDSub OnMaterialIDSubDelegate;
+	
 };

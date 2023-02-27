@@ -29,6 +29,9 @@ public:
 	TSharedPtr<FUICommandInfo> YChannel;
 	TSharedPtr<FUICommandInfo> ZChannel;
 	TSharedPtr<FUICommandInfo> WChannel;
+	TSharedPtr<FUICommandInfo> Compact;
+	TSharedPtr<FUICommandInfo> Iterable;
+	TSharedPtr<FUICommandInfo> Exploded;
 
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;

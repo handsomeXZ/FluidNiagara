@@ -10,8 +10,6 @@
 #include "TargetInterfaces\MaterialProvider.h"
 #include "GeometryBase.h"
 
-#include "FDOverlay3DViewportClient.h"
-
 #include "FDOverlayMeshInput.generated.h"
 
 class UMaterialInterface;
@@ -62,8 +60,8 @@ public:
 	 * 可选: 线框跟踪 unwrap mesh preview。如果设置了，它将在类更新展开预览时得到更新，并在Shutdown()上销毁。
 	 * TODO: 我们应该有一个更新线框的快速路径…
 	 */
-	//UPROPERTY()
-	//TObjectPtr<UMeshElementsVisualizer> WireframeDisplay = nullptr;
+	UPROPERTY()
+	TObjectPtr<UMeshElementsVisualizer> WireframeDisplay = nullptr;
 
 
 	// OnCanonicalModified 广播信息。如果有一天我们需要的话，这会增加更多的信息。
@@ -107,8 +105,12 @@ public:
 
 	void Shutdown();
 
-	void ChangeDynamicMaterialDisplayChannel(EFDOverlay3DViewportClientDisplayMode Channel, bool bIsDisplay);
+	void ChangeDynamicMaterialDisplayChannel(uint8 Channel, bool bIsDisplay);
+	void SwitchDynamicMaterialDisplayIDMode(uint8 style = 0);
+	void AddDynamicMaterialDisplayID();
+	void SubDynamicMaterialDisplayID();
 
+	void UpdateOpacity();
 	//注意以下便利函数:
 	// 1。为ChangedVids / changnedelementids / ChangedConnectivityTids 传递 nullptr 意味着所有的 vids / elements / tids 都需要分别更新。
 	//		传递 UFDOverlayMeshInput::NONE_CHANGED_ARG 相当于传递一个指向空数组的指针，意味着没有任何变化。否则，只有指向数组中的 vids / elements / tids 在更新的网格中迭代。
@@ -226,8 +228,9 @@ private:
 
 private:
 	// Material
-	UMaterialInterface* DefaultWorkingMaterial;
-	UMaterialInterface* DefaultBakeMaterialInterface;
+	UMaterialInterface* DefaultBakeAppliedMaterialInterface;
+	UMaterialInterface* DefaultBakeUnwrapMaterialInterface;
 	FComponentMaterialSet PrevMaterialSet;
-	FComponentMaterialSet BakeMaterialSet;
+	FComponentMaterialSet BakeAppliedMaterialSet;
+	FComponentMaterialSet BakeUnwrapMaterialSet;
 };

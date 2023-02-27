@@ -7,12 +7,13 @@
 #include "GeometryBase.h"
 #include "Materials\MaterialInstanceDynamic.h"
 #include "Engine\Texture2DArray.h"
+#include "ToolSetupUtil.h"
 
 using namespace UE::Geometry;
 
 bool UFDOverlayMeshInput::InitializeMeshes(UToolTarget* Target, TSharedPtr<FDynamicMesh3> AppliedCanonicalIn,
 	UMeshOpPreviewWithBackgroundCompute* AppliedPreviewIn, int32 AssetIDIn, int32 UVLayerIndexIn, UWorld* UnwrapWorld,
-	UWorld* LivePreviewWorld, UMaterialInterface* WorkingMaterialIn, UMaterialInterface* DefaultBakeMaterialInterfaceIn, TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn,
+	UWorld* LivePreviewWorld, UMaterialInterface* DefaultBakeAppliedMaterialInterfaceIn, UMaterialInterface* DefaultBakeUnwrapMaterialInterfaceIn, TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn,
 	TFunction<FVector2f(const FVector3d&)> VertPositionToUVFuncIn)
 {
 
@@ -23,8 +24,8 @@ bool UFDOverlayMeshInput::InitializeMeshes(UToolTarget* Target, TSharedPtr<FDyna
 	VertPositionToUV = VertPositionToUVFuncIn;
 	UVLayerIndex = UVLayerIndexIn;
 	AppliedCanonical = AppliedCanonicalIn;
-	DefaultWorkingMaterial = WorkingMaterialIn;
-	DefaultBakeMaterialInterface = DefaultBakeMaterialInterfaceIn;
+	DefaultBakeAppliedMaterialInterface = DefaultBakeAppliedMaterialInterfaceIn;
+	DefaultBakeUnwrapMaterialInterface = DefaultBakeUnwrapMaterialInterfaceIn;
 
 	if (!AppliedCanonical->HasAttributes())
 	{
@@ -46,7 +47,8 @@ bool UFDOverlayMeshInput::InitializeMeshes(UToolTarget* Target, TSharedPtr<FDyna
 
 	FComponentMaterialSet MSet = UE::ToolTarget::GetMaterialSet(SourceTarget);
 	PrevMaterialSet.Materials.Empty(MSet.Materials.Num());
-	BakeMaterialSet.Materials.Empty(MSet.Materials.Num());
+	BakeAppliedMaterialSet.Materials.Empty(MSet.Materials.Num());
+	BakeUnwrapMaterialSet.Materials.Empty(MSet.Materials.Num());
 	int MID = 0;
 	for (UMaterialInterface* MI : MSet.Materials)
 	{
@@ -54,15 +56,20 @@ bool UFDOverlayMeshInput::InitializeMeshes(UToolTarget* Target, TSharedPtr<FDyna
 		UMaterialInstanceDynamic* MIPrevDynamic = UMaterialInstanceDynamic::Create(MI, SourceTarget, UniqueDynamicName);
 		PrevMaterialSet.Materials.Add(MIPrevDynamic);
 
-		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("BakeMID_%03d"), MID)));
-		UMaterialInstanceDynamic* MIBakeDynamic = UMaterialInstanceDynamic::Create(DefaultBakeMaterialInterface, SourceTarget, UniqueDynamicName);
-		BakeMaterialSet.Materials.Add(MIBakeDynamic);
+		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("BakeAppliedMID_%03d"), MID)));
+		UMaterialInstanceDynamic* MIBakeAppliedDynamic = UMaterialInstanceDynamic::Create(DefaultBakeAppliedMaterialInterface, SourceTarget, UniqueDynamicName);
+		BakeAppliedMaterialSet.Materials.Add(MIBakeAppliedDynamic);
+
+		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("BakeUnwrapMID_%03d"), MID)));
+		UMaterialInstanceDynamic* MIBakeUnwrapDynamic = UMaterialInstanceDynamic::Create(DefaultBakeUnwrapMaterialInterface, SourceTarget, UniqueDynamicName);
+		BakeUnwrapMaterialSet.Materials.Add(MIBakeUnwrapDynamic);
 
 		MID++;
 	}
 
-	AppliedPreview->ConfigureMaterials(PrevMaterialSet.Materials, DefaultWorkingMaterial);
-	UnwrapPreview->ConfigureMaterials(PrevMaterialSet.Materials, DefaultWorkingMaterial);
+	// 默认都是直接使用的 PrevMaterialSet.Materials
+	AppliedPreview->ConfigureMaterials(PrevMaterialSet.Materials, DefaultBakeAppliedMaterialInterface);
+	UnwrapPreview->ConfigureMaterials(BakeUnwrapMaterialSet.Materials, DefaultBakeUnwrapMaterialInterface);
 
 	return true;
 }
@@ -98,6 +105,7 @@ void UFDOverlayMeshInput::GenerateUVUnwrapMesh(const FDynamicMeshUVOverlay& UVOv
 		UnwrapMeshUVOverlay->SetParentVertex(ElementID, ElementID);
 
 		UnwrapMeshNormalOverlay->InsertElement(ElementID, &UVElement.X, true);
+
 	}
 	UnwrapMeshOut.EndUnsafeVerticesInsert();
 	UnwrapMeshUVOverlay->EndUnsafeElementsInsert();
@@ -123,39 +131,95 @@ void UFDOverlayMeshInput::GenerateUVUnwrapMesh(const FDynamicMeshUVOverlay& UVOv
 		{
 			FIndex3i UVTri = UVOverlay.GetTriangle(Tid);
 			int32 MID = OverlayParentMesh->Attributes()->GetMaterialID()->GetValue(Tid);
-			MaxMaterialIndex = MaxMaterialIndex >= MID ? MaxMaterialIndex:MID;
+			MaxMaterialIndex = MaxMaterialIndex >= MID ? MaxMaterialIndex : MID;
 			UnwrapMeshOut.InsertTriangle(Tid, UVTri, 0, true);
 			UnwrapMeshUVOverlay->SetTriangle(Tid, UVTri);
 			UnwrapMeshMaterialAttribute->SetNewValue(Tid, MID);
 		}
 	}
 	UnwrapMeshOut.EndUnsafeTrianglesInsert();
+
+
 }
 
 void UFDOverlayMeshInput::ShowToMesh(const UTexture2DArray* BakedSource)
 {
-	for (int Mid = 0; Mid < BakeMaterialSet.Materials.Num(); Mid++)
+	for (int Mid = 0; Mid < BakeAppliedMaterialSet.Materials.Num(); Mid++)
 	{
-		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeMaterialSet.Materials[Mid];
+		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeAppliedMaterialSet.Materials[Mid];
 		MIDynamic->SetTextureParameterValue(FName(TEXT("Input")), (UTexture*)BakedSource);
 		MIDynamic->SetScalarParameterValue(FName(TEXT("MID")), Mid);
 		UE_LOG(LogTemp, Warning, TEXT("Change DMI Success %d"), Mid);
 	}
-	AppliedPreview->ConfigureMaterials(BakeMaterialSet.Materials, DefaultWorkingMaterial);
-	UnwrapPreview->ConfigureMaterials(BakeMaterialSet.Materials, DefaultWorkingMaterial);
+	AppliedPreview->ConfigureMaterials(BakeAppliedMaterialSet.Materials, DefaultBakeAppliedMaterialInterface);
+
+	for (int Mid = 0; Mid < BakeUnwrapMaterialSet.Materials.Num(); Mid++)
+	{
+		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeUnwrapMaterialSet.Materials[Mid];
+		MIDynamic->SetTextureParameterValue(FName(TEXT("Input")), (UTexture*)BakedSource);
+		MIDynamic->SetScalarParameterValue(FName(TEXT("MID")), Mid);
+		UE_LOG(LogTemp, Warning, TEXT("Change DMI Success %d"), Mid);
+	}
+	UnwrapPreview->ConfigureMaterials(BakeUnwrapMaterialSet.Materials, DefaultBakeUnwrapMaterialInterface);
 
 	
 }
 
-void UFDOverlayMeshInput::ChangeDynamicMaterialDisplayChannel(EFDOverlay3DViewportClientDisplayMode Channel, bool bIsDisplay)
+void UFDOverlayMeshInput::ChangeDynamicMaterialDisplayChannel(uint8 Channel, bool bIsDisplay)
 {
-	for (int Mid = 0; Mid < BakeMaterialSet.Materials.Num(); Mid++)
+	for (int Mid = 0; Mid < BakeAppliedMaterialSet.Materials.Num(); Mid++)
 	{
-		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeMaterialSet.Materials[Mid];
+		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeAppliedMaterialSet.Materials[Mid];
 		MIDynamic->SetScalarParameterValue(FName(FString::Printf(TEXT("Channel%d"), Channel)), bIsDisplay);
 	}
-	AppliedPreview->ConfigureMaterials(BakeMaterialSet.Materials, DefaultWorkingMaterial);
-	UnwrapPreview->ConfigureMaterials(BakeMaterialSet.Materials, DefaultWorkingMaterial);
+	AppliedPreview->ConfigureMaterials(BakeAppliedMaterialSet.Materials, DefaultBakeAppliedMaterialInterface);
+
+	for (int Mid = 0; Mid < BakeUnwrapMaterialSet.Materials.Num(); Mid++)
+	{
+		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeUnwrapMaterialSet.Materials[Mid];
+		MIDynamic->SetScalarParameterValue(FName(FString::Printf(TEXT("Channel%d"), Channel)), bIsDisplay);
+	}
+	UnwrapPreview->ConfigureMaterials(BakeUnwrapMaterialSet.Materials, DefaultBakeUnwrapMaterialInterface);
+}
+
+void UFDOverlayMeshInput::SwitchDynamicMaterialDisplayIDMode(uint8 style /* = 0 */)
+{
+	switch (style)
+	{
+		case 0: 
+			MaterialIndex = -1;
+			break;
+		default:
+			MaterialIndex = 0;
+			break;
+	}
+	UpdateOpacity();
+}
+void UFDOverlayMeshInput::AddDynamicMaterialDisplayID()
+{
+	if (MaterialIndex < MaxMaterialIndex)
+	{
+		MaterialIndex++;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("%d"), MaterialIndex);
+	UpdateOpacity();
+}
+void UFDOverlayMeshInput::SubDynamicMaterialDisplayID()
+{
+	if (MaterialIndex > 0)
+	{
+		MaterialIndex--;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("%d"), MaterialIndex);
+	UpdateOpacity();
+}
+void UFDOverlayMeshInput::UpdateOpacity()
+{
+	for (int Mid = 0; Mid < BakeUnwrapMaterialSet.Materials.Num(); Mid++)
+	{
+		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeUnwrapMaterialSet.Materials[Mid];
+		MIDynamic->SetScalarParameterValue(FName(TEXT("Opacity")), MaterialIndex == -1 ? 1 : MaterialIndex == Mid ? 1 : 0);
+	}
 }
 
 void UFDOverlayMeshInput::Shutdown()

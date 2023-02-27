@@ -55,4 +55,5 @@ protected:
 	TObjectPtr<UToolTargetManager> ToolTargetManager = nullptr;
 	
 	TMap<TObjectPtr<UObject>, TObjectPtr<UFDOverlayAssetEditor>> OpenedEditorInstances;
+
 };

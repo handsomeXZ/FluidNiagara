@@ -15,7 +15,7 @@ enum EFDOverlay3DViewportClientDisplayMode : uint8 {
 	W = 3
 };
 
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnToggleOverlayChannel, EFDOverlay3DViewportClientDisplayMode, bool)
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnToggleOverlayChannel, uint8, bool)
 
 /**
  * Viewport client for the 3d live preview in the UV editor. Currently same as editor viewport
@@ -40,7 +40,7 @@ public:
 	bool GetDisplayMode(EFDOverlay3DViewportClientDisplayMode Mode);
 	void ToggleDisplayMode(EFDOverlay3DViewportClientDisplayMode Mode);
 
-protected:
+private:
 
 	bool DisplayModeX = true;
 	bool DisplayModeY = true;

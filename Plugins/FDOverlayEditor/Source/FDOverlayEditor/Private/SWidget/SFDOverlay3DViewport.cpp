@@ -54,4 +54,17 @@ TSharedPtr<SWidget> SFDOverlay3DViewport::MakeViewportToolbar()
 		.CommandList(CommandList);
 }
 
+void SFDOverlay3DViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget)
+{
+	ViewportOverlay->AddSlot()
+		[
+			OverlaidWidget	// 由 FFDOverlayEditorModeToolkit 创建，借助 FFDOverlayAssetEditorToolkit 传入
+		];
+}
+
+
+void SFDOverlay3DViewport::RemoveOverlayWidget(TSharedRef<SWidget> OverlaidWidget)
+{
+	ViewportOverlay->RemoveSlot(OverlaidWidget);
+}
 #undef LOCTEXT_NAMESPACE

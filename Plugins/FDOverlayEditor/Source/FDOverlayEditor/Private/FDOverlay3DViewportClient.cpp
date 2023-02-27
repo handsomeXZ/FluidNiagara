@@ -65,19 +65,19 @@ void FFDOverlay3DViewportClient::ToggleDisplayMode(EFDOverlay3DViewportClientDis
 	{
 	case X:
 		DisplayModeX = !DisplayModeX;
-		OnToggleOverlayChannelDelegate.Broadcast(EFDOverlay3DViewportClientDisplayMode::X, DisplayModeX);
+		OnToggleOverlayChannelDelegate.Broadcast((uint8)EFDOverlay3DViewportClientDisplayMode::X, DisplayModeX);
 		break;
 	case Y:
 		DisplayModeY = !DisplayModeY;
-		OnToggleOverlayChannelDelegate.Broadcast(EFDOverlay3DViewportClientDisplayMode::Y, DisplayModeY);
+		OnToggleOverlayChannelDelegate.Broadcast((uint8)EFDOverlay3DViewportClientDisplayMode::Y, DisplayModeY);
 		break;
 	case Z:
 		DisplayModeZ = !DisplayModeZ;
-		OnToggleOverlayChannelDelegate.Broadcast(EFDOverlay3DViewportClientDisplayMode::Z, DisplayModeZ);
+		OnToggleOverlayChannelDelegate.Broadcast((uint8)EFDOverlay3DViewportClientDisplayMode::Z, DisplayModeZ);
 		break;
 	case W:
 		DisplayModeW = !DisplayModeW;
-		OnToggleOverlayChannelDelegate.Broadcast(EFDOverlay3DViewportClientDisplayMode::W, DisplayModeW);
+		OnToggleOverlayChannelDelegate.Broadcast((uint8)EFDOverlay3DViewportClientDisplayMode::W, DisplayModeW);
 		break;
 	}
 

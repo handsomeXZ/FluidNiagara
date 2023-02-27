@@ -185,13 +185,13 @@ void FFDOverlayAssetEditorToolkit::OnClose()
 // 当模式启动或结束一个工具时，这些被间接(通过工具箱主机)从模式工具箱中调用，以添加或删除 accept/cancel overlay 。
 void FFDOverlayAssetEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
 {
-	// TODO: Unimplemented, is empty function
-	// TODO: What is this actually used for?
+	TSharedPtr<SFDOverlay3DViewport> ViewportWidget = StaticCastSharedPtr<SFDOverlay3DViewport>(ViewportTabContent->GetFirstViewport());
+	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget);
 }
 void FFDOverlayAssetEditorToolkit::RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
 {
-	// TODO: Unimplemented, is empty function
-	// TODO: What is this actually used for?
+	TSharedPtr<SFDOverlay3DViewport> ViewportWidget = StaticCastSharedPtr<SFDOverlay3DViewport>(ViewportTabContent->GetFirstViewport());
+	ViewportWidget->RemoveOverlayWidget(InViewportOverlayWidget);
 }
 
 TSharedRef<SDockTab> FFDOverlayAssetEditorToolkit::SpawnTab_LivePreview(const FSpawnTabArgs& Args)
@@ -216,12 +216,12 @@ void FFDOverlayAssetEditorToolkit::CreateWidgets()
 // 在 FBaseAssetToolkit::CreateWidgets 调用
 TSharedPtr<FEditorViewportClient> FFDOverlayAssetEditorToolkit::CreateEditorViewportClient() const
 {
-	// 注意，我们在这里不能可靠地调整视口客户端，因为我们将把它传递到由我们从GetViewportDelegate()获得的视口委托创建的视口中，
+	// 注意，我们在这里不能可靠地调整视口客户端，因此我们将把它传递到由我们从GetViewportDelegate()获得的视口委托创建的视口中，
 	// 并且该委托可能(将)影响基于FAssetEditorViewportConstructionArgs的设置，即ViewportType。
 	// 相反，我们在PostInitAssetEditor()中做视口客户端调整。
 	check(EditorModeManager.IsValid());
 	return MakeShared<FFDOverlay2DViewportClient>(EditorModeManager.Get(), UnwrapScene.Get(),
-		FDOverlay2DViewport, ViewportButtonsAPI, FDOverlayLive2DViewportAPI);
+		FDOverlay2DViewport, ViewportButtonsAPI);
 }
 
 // 在 FBaseAssetToolkit::CreateWidgets 调用
@@ -247,7 +247,7 @@ void FFDOverlayAssetEditorToolkit::CreateEditorModeManager()
 	StaticCastSharedPtr<FAssetEditorModeManager>(EditorModeManager)->SetPreviewScene(UnwrapScene.Get());
 }
 
-void FFDOverlayAssetEditorToolkit::PostInitAssetEditor() 
+void FFDOverlayAssetEditorToolkit::PostInitAssetEditor()
 {
 	// 我们在这里设置了ModeUILayer连接，因为InitAssetEditor对我们是关闭的。
 	// 其他编辑器在其他地方执行此步骤，但这是我们的最佳位置。
@@ -265,9 +265,9 @@ void FFDOverlayAssetEditorToolkit::PostInitAssetEditor()
 
 	// 这个静态方法初始化了各种上下文，使得 Mode在Enter()的 ContextStore 中可用才能正常工作。
 	UFDOverlayEditorMode::InitializeAssetEditorContexts(*EditorModeManager->GetInteractiveToolsContext()->ContextObjectStore,
-		ObjectsToEdit, ObjectTransforms, *Live3DPreviewViewportClient, *Live3DPreviewEditorModeManager,
-		*ViewportButtonsAPI, *FDOverlayLive2DViewportAPI);
-
+		ObjectsToEdit, ObjectTransforms, *Live3DPreviewViewportClient, *ViewportClient, *Live3DPreviewEditorModeManager,
+		*ViewportButtonsAPI);
+		
 	// 目前，除了设置所有的UI元素，工具箱还启动了FD编辑器模式，这是编辑器始终工作的模式(东西被打包到一个模式中，以便在必要时可以移动到另一个资产编辑器中)。
 	// 我们需要激活UV模式来创建左侧的工具箱。
 	check(EditorModeManager.IsValid());

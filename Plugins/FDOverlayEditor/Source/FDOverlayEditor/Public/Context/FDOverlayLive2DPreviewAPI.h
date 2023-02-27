@@ -3,22 +3,9 @@
 #include "CoreMinimal.h"
 
 #include "FDOverlayContextObject.h"
-
+#include "FDOverlay2DViewportClient.h"
 #include "FDOverlayLive2DPreviewAPI.generated.h"
 
-
-//USTRUCT()
-//struct UVEDITORTOOLS_API FUDIMBlock
-//{
-//	GENERATED_BODY();
-//
-//	UPROPERTY()
-//	int32 UDIM = 1001;
-//
-//	int32 BlockU() const;
-//	int32 BlockV() const;
-//	void SetFromBlocks(int32 BlockU, int32 BlockV);
-//};
 
 /**
  * Allows tools to interact with the 2d preview viewport 
@@ -28,67 +15,25 @@ class FDOVERLAYEDITOR_API UFDOverlayLive2DViewportAPI : public UFDOverlayContext
 {
 	GENERATED_BODY()
 public:
+	void InitializeDelegate(TUniqueFunction<FOnSwitchMaterialIDMode& ()> OnSwitchMaterialIDModeDelegateFuncIn,
+		TUniqueFunction<FOnMaterialIDAdd& ()> OnMaterialIDAddDelegateFuncIn,
+		TUniqueFunction<FOnMaterialIDSub& ()> OnMaterialIDSubDelegateFuncIn
+	);
 
-	//void SetUDIMBlocks(TArray<FUDIMBlock>& BlocksIn, bool bBroadcast = true)
-	//{
-	//	UDIMBlocks = BlocksIn;
-	//	if (bBroadcast)
-	//	{
-	//		OnUDIMBlockChange.Broadcast(UDIMBlocks);
-	//	}
-	//}
-
-	//const TArray<FUDIMBlock>& GetUDIMBlocks() const
-	//{
-	//	return UDIMBlocks;
-	//}
-
-	void SetDrawGrid(bool bDrawGridIn, bool bBroadcast = true)
+	FOnSwitchMaterialIDMode& OnSwitchMaterialIDModeDelegate()
 	{
-		bDrawGrid = bDrawGridIn;
-		if (bBroadcast)
-		{
-			OnDrawGridChange.Broadcast(bDrawGrid);
-		}
+		return OnSwitchMaterialIDModeDelegateFunc();
 	}
-
-	const bool GetDrawGrid() const
-    {
-		return bDrawGrid;
-	}
-
-	void SetDrawRulers(bool bDrawRulersIn, bool bBroadcast = true)
+	FOnMaterialIDAdd& OnMaterialIDAddDelegate()
 	{
-		bDrawRulers = bDrawRulersIn;
-		if (bBroadcast)
-		{
-			OnDrawRulersChange.Broadcast(bDrawRulers);
-		}
+		return OnMaterialIDAddDelegateFunc();
 	}
-
-	const bool GetDrawRulers() const
-    {
-		return bDrawRulers;
+	FOnMaterialIDSub& OnMaterialIDSubDelegate()
+	{
+		return OnMaterialIDSubDelegateFunc();
 	}
-
-
-	//DECLARE_MULTICAST_DELEGATE_OneParam(FOnUDIMBlockChange, const TArray<FUDIMBlock>& UDIMBlocks);
-	//FOnUDIMBlockChange OnUDIMBlockChange;
-
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnDrawGridChange, bool bDrawGrid);
-	FOnDrawGridChange OnDrawGridChange;
-
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnDrawRulersChange, bool bDrawRulers);
-	FOnDrawRulersChange OnDrawRulersChange;
-
-protected:
-
-	//UPROPERTY(Transient)
-	//TArray<FUDIMBlock> UDIMBlocks;
-
-	UPROPERTY(Transient)
-	bool bDrawGrid;
-
-	UPROPERTY(Transient)
-	bool bDrawRulers;
+private:
+	TUniqueFunction<FOnSwitchMaterialIDMode& ()> OnSwitchMaterialIDModeDelegateFunc;
+	TUniqueFunction<FOnMaterialIDAdd& ()> OnMaterialIDAddDelegateFunc;
+	TUniqueFunction<FOnMaterialIDSub& ()> OnMaterialIDSubDelegateFunc;
 };

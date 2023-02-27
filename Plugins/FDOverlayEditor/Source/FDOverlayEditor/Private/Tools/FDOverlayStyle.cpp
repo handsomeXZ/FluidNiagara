@@ -22,7 +22,9 @@ FFDOverlayStyle::FFDOverlayStyle()
 	Set("FDOverlay.YChannel", new IMAGE_BRUSH_SVG("YChannel", ToolbarIconSize));
 	Set("FDOverlay.ZChannel", new IMAGE_BRUSH_SVG("ZChannel", ToolbarIconSize));
 	Set("FDOverlay.WChannel", new IMAGE_BRUSH_SVG("WChannel", ToolbarIconSize));
-
+	Set("FDOverlay.Compact",  new IMAGE_BRUSH_SVG("Compact",  ToolbarIconSize));
+	Set("FDOverlay.Iterable", new IMAGE_BRUSH_SVG("Iterable", ToolbarIconSize));
+	Set("FDOverlay.Exploded", new IMAGE_BRUSH_SVG("Exploded", ToolbarIconSize));
 	// Top toolbar icons
 	Set("FDOverlay.ApplyChanges", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Apply", ToolbarIconSize));
 

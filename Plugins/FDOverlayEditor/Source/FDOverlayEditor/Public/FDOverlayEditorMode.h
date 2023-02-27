@@ -43,8 +43,8 @@ public:
 	 */
 	static void InitializeAssetEditorContexts(UContextObjectStore& ContextStore,
 		const TArray<TObjectPtr<UObject>>& AssetsIn, const TArray<FTransform>& TransformsIn,
-		FEditorViewportClient& LivePreviewViewportClient, FAssetEditorModeManager& LivePreviewModeManager,
-		UFDOverlayViewportButtonsAPI& ViewportButtonsAPI, UFDOverlayLive2DViewportAPI& FDOverlayLive2DViewportAPI);
+		FEditorViewportClient& LivePreviewViewportClient, FEditorViewportClient& Live2DViewportClient,
+		FAssetEditorModeManager& LivePreviewModeManager, UFDOverlayViewportButtonsAPI& ViewportButtonsAPI);
 
 	//virtual void Render(IToolsContextRenderAPI* RenderAPI);
 	//virtual void DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI);
@@ -133,5 +133,6 @@ protected:
 	FDelegateHandle EndPIEDelegateHandle;
 	FDelegateHandle CancelPIEDelegateHandle;
 
-	UMaterialInterface* DefaultBakeMaterialInterface = nullptr;
+	UMaterialInterface* DefaultBakeAppliedMaterialInterface = nullptr;
+	UMaterialInterface* DefaultBakeUnwrapMaterialInterface = nullptr;
 };
