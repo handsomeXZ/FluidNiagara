@@ -1,4 +1,4 @@
-
+// Copyright HandsomeCheese. All Rights Reserved.
 #include "FDOverlay2DViewportClient.h"
 
 #include "ContextObjectStore.h"

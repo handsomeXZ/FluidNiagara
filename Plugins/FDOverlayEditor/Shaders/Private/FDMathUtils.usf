@@ -1,0 +1,183 @@
+// Copyright HandsomeCheese. All Rights Reserved.
+
+int IsPositive(float valueIn)
+{
+	// Negative: 0
+	// Positive: 1
+    return (int) (saturate(ceil(valueIn)) + 0.1);
+}
+
+int IsNegative(float valueIn)
+{
+	// Negative: 1
+	// Positive: 0
+    return 1 - (int) (saturate(ceil(valueIn)) + 0.1);
+}
+int IsNearlyZero(float Value)
+{
+    return IsNegative(abs(Value) - 0.00001);
+}
+float DistancePointToLine(float3 p, float3 o, float3 dir)
+{
+    dir = normalize(dir);
+    float3 v = p - o;
+    float d = length(cross(v, dir));
+    //return d / length(dir);
+    return d;
+}
+
+float DistancePointAlongLine(float3 p, float3 o, float3 dir)
+{
+    dir = normalize(dir);
+    float3 v = p - o;
+    float d = dot(v, dir);
+    //return d / length(dir);
+    return d;
+}
+
+float3 PointAtLine(float3 p, float3 o, float3 dir)
+{
+    float len = DistancePointAlongLine(p, o, dir);
+    return normalize(dir) * len + o;
+}
+
+// Barycentric coordinates
+bool IsPointInsideTriangle(float2 P, float2 A, float2 B, float2 C)
+{
+    float u = ((B.y - C.y) * (P.x - C.x) + (C.x - B.x) * (P.y - C.y)) / ((B.y - C.y) * (A.x - C.x) + (C.x - B.x) * (A.y - C.y));
+    float v = ((C.y - A.y) * (P.x - C.x) + (A.x - C.x) * (P.y - C.y)) / ((B.y - C.y) * (A.x - C.x) + (C.x - B.x) * (A.y - C.y));
+    float w = 1.0f - u - v;
+    return (u >= 0.0f) && (v >= 0.0f) && (w >= 0.0f) && (u <= 1.0f) && (v <= 1.0f) && (w <= 1.0f);
+}
+
+float3 GetPixelPos(float2 Pixeluv, float2 Auv, float2 Buv, float2 Cuv, float3 A, float3 B, float3 C, float2 UVScale)
+{
+    Pixeluv = Pixeluv * UVScale;
+    Auv = Auv * UVScale;
+    Buv = Buv * UVScale;
+    Cuv = Cuv * UVScale;
+    float3 w = normalize(cross(B - A, C - A));
+    float3 v = normalize(float3(B - A));
+    float3 u = cross(v, w);
+    
+    float4x4 ToWorld = float4x4(u.x, u.y, u.z, 0,
+                                v.x, v.y, v.z, 0,
+                                w.x, w.y, w.z, 0,
+                                A.x, A.y, A.z, 1);
+    // 需要判断 pixel 在 AB向量的哪一侧
+    //float isLeft =  length(normalize(cross(float3(Pixeluv - Auv, 0), float3(Buv - Auv, 0))) + w) - 1;
+    float Pv = dot(Pixeluv - Auv, normalize(Buv - Auv));
+    float3 uvNormal = cross(normalize(float3(Buv, 0) - float3(Auv, 0)), normalize(float3(Cuv, 0) - float3(Auv, 0)));
+    float Pu = dot(float3(Pixeluv - Auv, 0), normalize(cross(normalize(float3(Buv, 0) - float3(Auv, 0)), normalize(uvNormal))));
+    //DistancePointToLine(float3(Pixeluv, 0), float3(Auv, 0), float3(Buv - Auv, 0)) * isLeft;
+    float4 PixelLocal = float4(Pu, Pv, 0, 1);
+    return mul(PixelLocal, ToWorld).xyz;
+}
+
+float GetAngle(float3 v1, float3 v2)
+{
+    return degrees(acos(clamp(dot(normalize(v1), normalize(v2)), -1.0, 1.0)));
+}
+
+float4 GetInteraction(float3 o1, float3 o2, float3 dir1, float3 dir2)
+{
+    float3 dir1d = normalize(dir1) * 2000.0;
+    float3 dir2d = normalize(dir2) * 2000.0;  
+    
+    float3 far_o1 = o1 + dir1d / 2.0;
+    float3 far_o2 = o2 + dir2d / 2.0;
+    float3 near_o1 = o1 - dir1d / 2.0;
+    float3 near_o2 = o2 - dir2d / 2.0;
+    
+    float3 far_o3 = (near_o1 - near_o2) + far_o2;
+    float3 dir3d = far_o3 - near_o1; // near_o2 => far_o2 平移到 near_o1 =>far_o3
+    
+    float S1 = length(cross(near_o2 - near_o1, dir1d));
+    float S2 = length(cross(dir1d, dir3d));
+
+    return float4(near_o2 + (S1 / (S2 + IsNearlyZero(S2))) * dir2d, 1 - IsNearlyZero(S2));
+}
+
+float MinAngle(float3 o1, float3 o2, float3 dir1, float3 dir2)
+{
+    // 求两条射线和交点组成的三角形中，两端的最小角
+    float a1 = GetAngle(o2 - o1, dir1);
+    float a2 = GetAngle(o1 - o2, dir2);
+    
+    a1 = fmod(180.0 + ((float) (IsPositive(90 - a1) * 2 - 1)) * a1, 180.0);
+    a1 = fmod(180.0 + ((float) (IsPositive(90 - a2) * 2 - 1)) * a2, 180.0);
+    
+    return ((float) IsPositive(a1 - a2)) * a2 + ((float) IsPositive(a2 - a1)) * a1;
+}
+
+int AtSameSide(float3 o, float3 dir, float3 src, float3 tar)
+{
+    float3 v1 = normalize(src - o);
+    float3 v2 = normalize(tar - o);
+    return 1 - IsNegative(dot(normalize(cross(v1, normalize(dir))), normalize(cross(v2, normalize(dir)))));
+}
+
+int IsSameDirection(float3 v1, float v2)
+{
+    return IsNearlyZero(dot(v1, v2) - 1);
+}
+
+// 单次VRIC计算
+float4 VRIC(float3 Interaction, float3 o1, float3 o2, float3 PixelPos, float vric)
+{
+    float3 mid = (o1 + o2) / 2.0;
+    float3 p1 = (Interaction + o1) / 2.0;
+    float3 p2 = (Interaction + o2) / 2.0;
+    float3 Axis = normalize(cross(p2 - mid, p1 - mid));
+    float Angle = acos(dot(normalize(p2 - mid), normalize(p1 - mid)));
+    
+    Angle = Angle * vric;
+    
+    matrix rotationMatrix = matrix(
+        float4(Axis.x * Axis.x + cos(Angle) * (1 - Axis.x * Axis.x), Axis.x * Axis.y * (1 - cos(Angle)) - Axis.z * sin(Angle), Axis.x * Axis.z * (1 - cos(Angle)) + Axis.y * sin(Angle), 0),
+        float4(Axis.x * Axis.y * (1 - cos(Angle)) + Axis.z * sin(Angle), Axis.y * Axis.y + cos(Angle) * (1 - Axis.y * Axis.y), Axis.y * Axis.z * (1 - cos(Angle)) - Axis.x * sin(Angle), 0),
+        float4(Axis.x * Axis.z * (1 - cos(Angle)) - Axis.y * sin(Angle), Axis.y * Axis.z * (1 - cos(Angle)) + Axis.x * sin(Angle), Axis.z * Axis.z + cos(Angle) * (1 - Axis.z * Axis.z), 0),
+        float4(0, 0, 0, 1)
+    );
+    
+    float3 vricDir = mul(float4(p1 - mid, 0), rotationMatrix);
+    return float4(vricDir, AtSameSide(mid, vricDir, o1, PixelPos));
+}
+float4 Inverse_VRIC(float3 Interaction, float3 o1, float3 o2, float3 PixelPos, float vric)
+{
+    float3 mid = (o1 + o2) / 2.0;
+    float3 p1 = (Interaction + o1) / 2.0;
+    float3 p2 = (Interaction + o2) / 2.0;
+    // 和 VRIC() 的区别是计算 Axis 时交换了 p1、p2 
+    // 这是为了保证旋转时的一致
+    float3 Axis = normalize(cross(p1 - mid, p2 - mid));
+    float Angle = acos(dot(normalize(p2 - mid), normalize(p1 - mid)));
+    
+    Angle = Angle * vric;
+
+    matrix rotationMatrix = matrix(
+        float4(Axis.x * Axis.x + cos(Angle) * (1 - Axis.x * Axis.x), Axis.x * Axis.y * (1 - cos(Angle)) - Axis.z * sin(Angle), Axis.x * Axis.z * (1 - cos(Angle)) + Axis.y * sin(Angle), 0),
+        float4(Axis.x * Axis.y * (1 - cos(Angle)) + Axis.z * sin(Angle), Axis.y * Axis.y + cos(Angle) * (1 - Axis.y * Axis.y), Axis.y * Axis.z * (1 - cos(Angle)) - Axis.x * sin(Angle), 0),
+        float4(Axis.x * Axis.z * (1 - cos(Angle)) - Axis.y * sin(Angle), Axis.y * Axis.z * (1 - cos(Angle)) + Axis.x * sin(Angle), Axis.z * Axis.z + cos(Angle) * (1 - Axis.z * Axis.z), 0),
+        float4(0, 0, 0, 1)
+    );
+    
+    // 和 VRIC() 的区别是计算 vricDir 时交换了 p1、p2 
+    // 这是为了确保 VRIC() 和 Inverse_VRIC() 都是同一条分界线
+    float3 vricDir = mul(float4(p2 - mid, 0), rotationMatrix);
+    return float4(vricDir, AtSameSide(mid, vricDir, o1, PixelPos));
+}
+
+// 计算三角形面积
+float TriangleArea(float3 A, float3 B, float3 C)
+{
+    return length(cross(B - A, C - A)) * 0.5;
+}
+
+// 计算两个三维三角形面积之比
+float TriangleAreaRatio(float3 A, float3 B, float3 C, float3 D, float3 E, float3 F)
+{
+    float areaA = TriangleArea(A, B, C);
+    float areaB = TriangleArea(D, E, F);
+    return areaA / areaB;
+}

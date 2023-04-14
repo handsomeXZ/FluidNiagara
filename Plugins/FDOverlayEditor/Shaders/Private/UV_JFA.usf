@@ -1,0 +1,109 @@
+// Copyright HandsomeCheese. All Rights Reserved.
+#include "/Engine/Public/Platform.ush"
+
+// how many JFA steps to do.  2^MAXSTEPS is max image size on x and y
+
+
+float IterationLevel;
+Texture2DArray<float4> TextureSRV;
+RWTexture2DArray<float4> TextureUAV;
+
+//============================================================
+float4 EncodeData(in float2 coord, in float3 color)
+{
+    float4 ret = 0;
+    ret.xy = coord;
+    ret.z = floor(color.x * 255.0) * 256.0 + floor(color.y * 255.0);
+    ret.w = floor(color.z * 255.0);
+    return ret;
+}
+
+//============================================================
+void DecodeData(in float4 data, out float2 coord, out float3 color)
+{
+    coord = data.xy;
+    color.x = floor(data.z / 256.0) / 255.0;
+    color.y = fmod(data.z, 256.0) / 255.0;
+    color.z = fmod(data.w, 256.0) / 255.0;
+}
+
+//============================================================
+float4 StepJFA(in float2 fragCoord, in int slice, in float2 UVScale, in float level)
+{
+    level = clamp(level, 0.0, log2(UVScale));
+    float stepwidth = floor(exp2(log2(UVScale) - level) + 0.5);
+    
+    float bestDistance = 9999.0;
+    float2 bestCoord = 0;
+    float3 bestColor = 0;
+    
+    for (int y = -1; y <= 1; ++y)
+    {
+        for (int x = -1; x <= 1; ++x)
+        {
+            float2 sampleCoord = fmod(fragCoord + float2(x, y) * stepwidth, UVScale);
+            
+            float4 data = TextureSRV[uint3(sampleCoord, slice)];
+            float2 seedCoord = 0;
+            float3 seedColor = 0;
+            if (level < 0.00001)
+            {
+                if (data.w > 0.9)
+                {
+                    seedCoord = sampleCoord;
+                    seedColor = data.xyz;
+                }
+            }
+            else
+            {
+                DecodeData(data, seedCoord, seedColor);
+            }
+            
+            float dist = length(seedCoord - fragCoord);
+            if ((seedCoord.x != 0.0 || seedCoord.y != 0.0) && dist < bestDistance)
+            {
+                bestDistance = dist;
+                bestCoord = seedCoord;
+                bestColor = seedColor;
+            }
+        }
+    }
+    
+    return EncodeData(bestCoord, bestColor);
+}
+//============================================================
+[numthreads(THREADGROUPSIZE_X, THREADGROUPSIZE_Y, 1)]
+void CS(
+	uint3 GroupId : SV_GroupID,
+	uint3 GroupThreadId : SV_GroupThreadID,
+	uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    float2 UVScale;
+    uint MNum;
+    TextureUAV.GetDimensions(UVScale.x, UVScale.y, MNum);
+    float2 UV = float2(DispatchThreadId.x, DispatchThreadId.y) / UVScale;
+    
+    for (int i = 0; i < MNum; i++)
+    {
+        if (IterationLevel >= 0)
+        {
+            TextureUAV[uint3(DispatchThreadId.xy, i)] = StepJFA(DispatchThreadId.xy, i, UVScale, IterationLevel);
+        }
+        else
+        {
+            float4 data = TextureSRV[uint3(DispatchThreadId.xy, i)];
+            float2 seedCoord = 0;
+            float3 seedColor = 0;
+            DecodeData(data, seedCoord, seedColor);
+            float dist = length(seedCoord - DispatchThreadId.xy);
+            float w = TextureUAV[uint3(DispatchThreadId.xy, i)].w;
+            if (w < 0.0001)
+            {
+                TextureUAV[uint3(DispatchThreadId.xy, i)] = float4(seedColor, w);
+            }
+        }
+
+    }
+
+    
+}

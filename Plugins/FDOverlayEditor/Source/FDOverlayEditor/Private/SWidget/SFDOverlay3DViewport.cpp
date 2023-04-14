@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #include "SWidget/SFDOverlay3DViewport.h"
 
 #include "SWidget/SFDOverlay3DViewportToolBar.h"
@@ -13,7 +14,7 @@ void SFDOverlay3DViewport::BindCommands()
 	SAssetEditorViewport::BindCommands();
 
 	const FFDOverlayEditorModeCommands& CommandInfos = FFDOverlayEditorModeCommands::Get();
-
+	//============================================================
 	CommandList->MapAction(
 		CommandInfos.XChannel,
 		FExecuteAction::CreateLambda([this]() {
@@ -46,6 +47,40 @@ void SFDOverlay3DViewport::BindCommands()
 		FCanExecuteAction::CreateLambda([this]() { return true; }),
 		FIsActionChecked::CreateLambda([this]() { return StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->GetDisplayMode(EFDOverlay3DViewportClientDisplayMode::W); })
 	);
+	//============================================================
+	CommandList->MapAction(
+		CommandInfos.DefaultLight,
+		FExecuteAction::CreateLambda([this]() {
+			StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->ToggleRenderMode(EFDOverlay3DViewportClientRenderMode::DefaultLight);
+			}),
+		FCanExecuteAction::CreateLambda([this]() { return true; }),
+		FIsActionChecked::CreateLambda([this]() { return StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->GetRenderMode(EFDOverlay3DViewportClientRenderMode::DefaultLight); })
+	);
+	CommandList->MapAction(
+		CommandInfos.Emissive,
+		FExecuteAction::CreateLambda([this]() {
+			StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->ToggleRenderMode(EFDOverlay3DViewportClientRenderMode::Emissive);
+			}),
+		FCanExecuteAction::CreateLambda([this]() { return true; }),
+		FIsActionChecked::CreateLambda([this]() { return StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->GetRenderMode(EFDOverlay3DViewportClientRenderMode::Emissive); })
+	);
+	CommandList->MapAction(
+		CommandInfos.Translucency,
+		FExecuteAction::CreateLambda([this]() {
+			StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->ToggleRenderMode(EFDOverlay3DViewportClientRenderMode::Translucency);
+			}),
+		FCanExecuteAction::CreateLambda([this]() { return true; }),
+		FIsActionChecked::CreateLambda([this]() { return StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->GetRenderMode(EFDOverlay3DViewportClientRenderMode::Translucency); })
+	);
+	CommandList->MapAction(
+		CommandInfos.Transition,
+		FExecuteAction::CreateLambda([this]() {
+			StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->ToggleRenderMode(EFDOverlay3DViewportClientRenderMode::Transition);
+			}),
+		FCanExecuteAction::CreateLambda([this]() { return true; }),
+		FIsActionChecked::CreateLambda([this]() { return StaticCastSharedPtr<FFDOverlay3DViewportClient>(Client)->GetRenderMode(EFDOverlay3DViewportClientRenderMode::Transition); })
+	);
+	//============================================================
 }
 
 TSharedPtr<SWidget> SFDOverlay3DViewport::MakeViewportToolbar()

@@ -1,4 +1,4 @@
-
+// Copyright HandsomeCheese. All Rights Reserved.
 #pragma once
 
 #include "Toolkits/AssetEditorModeUILayer.h"

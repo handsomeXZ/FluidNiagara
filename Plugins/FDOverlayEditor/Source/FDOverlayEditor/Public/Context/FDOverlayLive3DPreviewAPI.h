@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -18,13 +19,19 @@ public:
 
 	void Initialize(UWorld* WorldIn, UInputRouter* RouterIn,
 		TUniqueFunction<FOnToggleOverlayChannel& ()> OnToggleOverlayChannelDelegateIn,
+		TUniqueFunction<FOnToggleOverlayRender& ()> OnToggleOverlayRenderDelegateIn,
 		TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn);
 
 	UWorld* GetLivePreviewWorld() { return World.Get(); }
 	UInputRouter* GetLivePreviewInputRouter() { return InputRouter.Get(); }
 	FOnToggleOverlayChannel& OnToggleOverlayChannelDelegate()
-	{ 
+	{
 		return OnToggleOverlayChannelDelegateFunc();
+	}
+
+	FOnToggleOverlayRender& OnToggleOverlayRenderDelegate()
+	{
+		return OnToggleOverlayRenderDelegateFunc();
 	}
 
 	void SetLivePreviewCameraToLookAtVolume(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)
@@ -52,6 +59,9 @@ public:
 	FOnDrawHUD OnDrawHUD;
 
 
+	DECLARE_MULTICAST_DELEGATE(FOnApplyChangesDelegate);
+	FOnApplyChangesDelegate OnApplyChangesDelegate;
+
 protected:
 	UPROPERTY()
 	TWeakObjectPtr<UWorld> World; // 独立的 World
@@ -60,5 +70,6 @@ protected:
 	TWeakObjectPtr<UInputRouter> InputRouter; // UInputRouter 是高级输入事件源(例如FEdMode)和一组响应这些事件的 InputBehaviors 之间的中介。
 
 	TUniqueFunction<FOnToggleOverlayChannel&()> OnToggleOverlayChannelDelegateFunc;
+	TUniqueFunction<FOnToggleOverlayRender& ()> OnToggleOverlayRenderDelegateFunc;
 	TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFunc;
 };

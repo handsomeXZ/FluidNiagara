@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #include "SWidget/SFDOverlay2DViewport.h"
 
 #include "FDOverlay2DViewportClient.h"

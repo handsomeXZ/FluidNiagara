@@ -1,3 +1,6 @@
+// Copyright HandsomeCheese. All Rights Reserved.
+
+
 #include "FDOverlayAssetEditorTooltik.h"
 
 #include "FDOverlayAssetEditor.h"
@@ -11,6 +14,7 @@
 #include "SWidget/SFDOverlay2DViewport.h"
 #include "SWidget/SFDOverlay3DViewport.h"
 #include "Tools/FDOverlayStyle.h"
+#include "FDOverlayEditorModeToolkit.h"
 
 #include "Framework\Commands\UIAction.h"
 #include "PreviewScene.h"
@@ -130,7 +134,7 @@ FFDOverlayAssetEditorToolkit::~FFDOverlayAssetEditorToolkit()
 
 FText FFDOverlayAssetEditorToolkit::GetToolkitName() const
 {
-	return LOCTEXT("FDOverlayTabName", "TestTabName");
+	return LOCTEXT("FDOverlayTabName", "UV Baker");
 }
 
 FName FFDOverlayAssetEditorToolkit::GetToolkitFName() const
@@ -306,21 +310,41 @@ void FFDOverlayAssetEditorToolkit::PostInitAssetEditor()
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FFDOverlayEditorModeCommands::Get().ApplyChanges, TAttribute<FText>(),
 	TAttribute<FText>(), FSlateIcon(FFDOverlayStyle::Get().GetStyleSetName(), "FDOverlay.ApplyChanges")));
 	
-	// Add the channel selection button.
-	// TODO：这个没必要实现，不过是否可以把这个替换为 材质ID Selection button ？
-	/*check(UVMode->GetToolkit().Pin());
-	FUVEditorModeToolkit* UVModeToolkit = static_cast<FUVEditorModeToolkit*>(UVMode->GetToolkit().Pin().Get());
+
+	FFDOverlayEditorModeToolkit* ModeToolkit = static_cast<FFDOverlayEditorModeToolkit*>(FDOverlayEditorMode->GetToolkit().Pin().Get());
+	// Add the Other selection button.
 	Section.AddEntry(FToolMenuEntry::InitComboButton(
-		"UVEditorChannelMenu",
+		"FDOverlayEditorSettings",
 		FUIAction(),
-		FOnGetContent::CreateLambda([UVModeToolkit]()
+		FOnGetContent::CreateLambda([ModeToolkit]()
 			{
-				return UVModeToolkit->CreateChannelMenu();
+
+				TSharedRef<SVerticalBox> Container = SNew(SVerticalBox);
+
+				Container->AddSlot()
+					.AutoHeight()
+					.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
+					[
+						SNew(SBox)
+						.MinDesiredWidth(500)
+					[
+						ModeToolkit->CreateSettingsWidget()
+					]
+					];
+
+				TSharedRef<SWidget> Widget = SNew(SBorder)
+					.HAlign(HAlign_Fill)
+					.Padding(4)
+					[
+						Container
+					];
+
+				return Widget;
 			}),
-		LOCTEXT("UVEditorChannelMenu_Label", "Channels"),
-				LOCTEXT("UVEditorChannelMenu_ToolTip", "Select the current UV Channel for each mesh"),
-				FSlateIcon(FUVEditorStyle::Get().GetStyleSetName(), "UVEditor.ChannelSettings")
-				));*/
+		LOCTEXT("FDOverlayEditorSettings_Label", "Setting"),
+		LOCTEXT("FDOverlayEditorSetting_ToolTip", "Change the Output Type Settings"),
+		FSlateIcon(FFDOverlayStyle::Get().GetStyleSetName(), "FDOverlay.Settings")
+	));
 
 
 
@@ -382,7 +406,7 @@ void FFDOverlayAssetEditorToolkit::PostInitAssetEditor()
 	}
 
 	// Adjust camera view to focus on the scene
-	//FDAssistoMode->FocusLivePreviewCameraOnSelection();
+	FDOverlayEditorMode->FocusLivePreviewCameraOnSelection();
 
 	// 将视口命令列表连接到我们的工具箱命令列表，这样工具箱未处理的热键将由视口处理(允许我们使用在详细信息面板或FD编辑器的其他地方单击后视口注册的任何热键)。
 	// 注意，命令列表的“Append”调用可能应该被称为“AppendTo”，因为它将被调用对象添加为参数命令列表的子对象。

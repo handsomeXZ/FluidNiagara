@@ -1,0 +1,210 @@
+// Copyright HandsomeCheese. All Rights Reserved.
+#include "/Engine/Public/Platform.ush"
+#include "/Plugin/FDOverlayEditor/Private/BezierUtils.usf"
+
+struct FAppliedVertex
+{
+    float3 Position;
+    float3 Normal;
+    float2 UV;
+};
+struct FTriangle
+{
+    int A;
+    int B;
+    int C;
+    int MID;
+};
+struct FParams
+{
+    int VertexNum;
+    int TriangleNum;
+    int ParamsArrNum;
+    int VRICFlag; // 0 / 1
+    float VRIC; // 0 ~ 1. Vector relative interference coefficient. This Name looks good, hahaha!!
+};
+struct FParamsArr
+{
+	float3 GradientOrigin;
+    float3 GradientDir;
+    float GradientMax;
+    float3 UVCurveOrigin;
+    float CurveRange; // It is not the maximum value, but the maximum length. For example, the maximum length between -1 and 1 is 2
+    int KeyNum;
+};
+
+StructuredBuffer<FAppliedVertex> VerticesBuffer  	: register(t0);
+StructuredBuffer<FTriangle> TrianglesBuffer  	: register(t1);
+StructuredBuffer<FCurveKey> KeyBuffer : register(t2);
+StructuredBuffer<FParams> ParamsBuffer  	: register(t3);
+StructuredBuffer<FParamsArr> ParamsBufferArr  	: register(t4);
+RWTexture2DArray<float4> RDGRWTexture : register(u0);
+
+[numthreads(THREADGROUPSIZE_X, THREADGROUPSIZE_Y, 1)]
+void CS(
+	uint3 GroupId : SV_GroupID,
+	uint3 GroupThreadId : SV_GroupThreadID,
+	uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    float2 UVScale;
+    uint MNum;
+    float vric = ParamsBuffer[0].VRIC;
+    float TriangleNum = ParamsBuffer[0].TriangleNum;
+    float ParamsArrNum = ParamsBuffer[0].ParamsArrNum;
+    int VRICFlag = ParamsBuffer[0].VRICFlag * IsPositive(ParamsArrNum - 1.5); // 单通道将强制采用 PPD计算
+    
+    RDGRWTexture.GetDimensions(UVScale.x, UVScale.y, MNum);
+    
+    float2 UV = float2(DispatchThreadId.x, DispatchThreadId.y) / UVScale;
+    
+    for (int Mid = 0; Mid < MNum; Mid++)
+    {
+        RDGRWTexture[uint3(DispatchThreadId.xy, Mid)] = 0;
+    }
+    for (int tri = 0; tri < TriangleNum; tri++)
+    {
+        
+        if (IsPointInsideTriangle(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV))
+        {
+            float3 PixelPos = GetPixelPos(UV, VerticesBuffer[TrianglesBuffer[tri].A].UV, VerticesBuffer[TrianglesBuffer[tri].B].UV, VerticesBuffer[TrianglesBuffer[tri].C].UV, 
+            VerticesBuffer[TrianglesBuffer[tri].A].Position, VerticesBuffer[TrianglesBuffer[tri].B].Position, VerticesBuffer[TrianglesBuffer[tri].C].Position, 100);
+            
+            
+            RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].w = 1;
+            ///////////////////////////////////////////////////////////////////////////////////////
+            // VRIC 用于解决有冲突的区域 
+            // 1: PLD
+            // 2: PPD
+
+            float MinDistance[2] = { -1, -1 };
+            float VRICRealGradientScale[2] = { -1, -1 };
+            int VRICClosetParamsId[2] = { 0, -2 };
+            uint VRICCurveStartIndex[2] = { 0, 0 }; // 仅记录 PLD 最小的数据包的 CurveKeys 起始地址
+            uint CurveStartIndexTemp = 0; // 缓存累加所有遍历的Keys的数量
+            for (int ParamsId = 0; ParamsId < ParamsArrNum; ParamsId++)
+            {
+                
+                FParamsArr data = ParamsBufferArr[ParamsId];
+#if SHADERMODE == 1
+                float GradientScale = DistancePointAlongLine(PixelPos, data.GradientOrigin, data.GradientDir) / data.GradientMax;
+#endif     
+#if SHADERMODE == 2
+                float GradientScale = length(PixelPos - data.GradientOrigin) / data.GradientMax;
+#endif
+                float PLD = -2;
+                uint Inverse_CurveStartIndexTemp = CurveStartIndexTemp + data.KeyNum;
+                // 暂存正反遍历计算的结果
+                float t_VRICRealGradientScale = 0;
+                int t_VRICClosetParamsId = 0;
+                uint t_VRICCurveStartIndex = 0;
+                for (int pid = ParamsId + 1; pid < ParamsArrNum; pid++)
+                {
+                    // 正向计算
+                    FParamsArr t_data = ParamsBufferArr[pid];
+                    float4 Ineraction = GetInteraction(data.GradientOrigin, t_data.GradientOrigin, data.GradientDir, t_data.GradientDir);
+                    float t_GradientScale = DistancePointAlongLine(PixelPos, t_data.GradientOrigin, t_data.GradientDir) / t_data.GradientMax;
+                    float4 vricDir = VRIC(Ineraction, data.GradientOrigin, t_data.GradientOrigin, PixelPos, vric);
+                    float distance = DistancePointToLine(PixelPos, (data.GradientOrigin + t_data.GradientOrigin) / 2.0, vricDir.xyz);
+                    uint PLDflag = IsPositive(distance) * IsPositive((PLD - distance) * (IsPositive(PLD) * 2 - 1)) * IsPositive(GradientScale) * IsPositive(t_GradientScale) * /*(1 - IsNearlyZero(pid - ParamsId)) * IsPositive(ParamsArrNum - 1.5) *  */vricDir.w * Ineraction.w * (1 - IsSameDirection(data.GradientDir, t_data.GradientDir));
+                    
+                    // 反向计算
+                    float4 Inverse_vricDir = Inverse_VRIC(Ineraction, t_data.GradientOrigin, data.GradientOrigin, PixelPos, vric);
+                    float Inverse_distance = DistancePointToLine(PixelPos, (data.GradientOrigin + t_data.GradientOrigin) / 2.0, vricDir.xyz);
+                    uint Inverse_PLDflag = (1 - PLDflag) * IsPositive(Inverse_distance) * IsPositive((PLD - Inverse_distance) * (IsPositive(PLD) * 2 - 1)) * IsPositive(GradientScale) * IsPositive(t_GradientScale) * Inverse_vricDir.w * Ineraction.w * (1 - IsSameDirection(data.GradientDir, t_data.GradientDir));
+                    
+                    PLD = PLDflag * distance + (1 - PLDflag) * PLD;
+                    PLD = Inverse_PLDflag * Inverse_distance + (1 - Inverse_PLDflag) * PLD;
+                    if (PLDflag + Inverse_PLDflag > 0)
+                    {
+                        t_VRICRealGradientScale = GradientScale * PLDflag + t_GradientScale * Inverse_PLDflag;
+                        t_VRICClosetParamsId = ParamsId * PLDflag + pid * Inverse_PLDflag;
+                        t_VRICCurveStartIndex = CurveStartIndexTemp * PLDflag + Inverse_CurveStartIndexTemp * Inverse_PLDflag;
+                    }
+                    Inverse_CurveStartIndexTemp += t_data.KeyNum;
+                }
+
+                float PPD = length(data.GradientOrigin - PixelPos);
+                // ---------------------------------------------
+                // · 避免使用 If 来取最小值
+                // · ` * (IsPositive(MinDistance) * 2 - 1)` 是为了当 MinDistance为 -1 且 PLD != -2 时，直接保存 distance
+                // · `* 2 - 1` 是为了归一化到 1,-1
+                // · 借助 GradientScale，避免影响禁烘焙区域
+                // ---------------------------------------------
+                // PLD
+                uint PLDflag = IsPositive((MinDistance[1] - PLD) * (IsPositive(MinDistance[1]) * 2 - 1)) * IsPositive(GradientScale) * IsPositive(PLD);
+                MinDistance[1] = PLDflag * PLD + (1 - PLDflag) * MinDistance[1];
+                if (PLDflag > 0)
+                {
+                    VRICRealGradientScale[1] = t_VRICRealGradientScale;
+                    VRICClosetParamsId[1] = t_VRICClosetParamsId;
+                    VRICCurveStartIndex[1] = t_VRICCurveStartIndex;
+                }
+                // ---------------------------------------------
+                // ---------------------------------------------
+                // PPD
+                uint PPDflag = IsPositive((MinDistance[0] - PPD) * (IsPositive(MinDistance[0]) * 2 - 1)) * IsPositive(GradientScale);
+                MinDistance[0] = PPDflag * PPD + (1 - PPDflag) * MinDistance[0];
+              
+                if (GradientScale * PPDflag > 0)
+                {
+                    VRICRealGradientScale[0] = GradientScale;
+                    VRICClosetParamsId[0] = ParamsId;
+                    VRICCurveStartIndex[0] = CurveStartIndexTemp;
+                }
+                // ---------------------------------------------
+                CurveStartIndexTemp += data.KeyNum;
+            }
+            
+            FParamsArr PLD_data = ParamsBufferArr[VRICClosetParamsId[1]];
+            FParamsArr PPD_data = ParamsBufferArr[VRICClosetParamsId[0]];
+            
+            // 如果 PLD无法计算出结果，则自动转为 PPD, 如果初始就是 PPD，就仍旧为 PPD。
+            // 例如：烘焙方向相同时
+            float temp_VRICFlag = IsPositive(VRICClosetParamsId[VRICFlag] + 1) * VRICFlag;
+            
+            float RealGradientScale = VRICRealGradientScale[temp_VRICFlag];
+            uint ClosetParamsId = VRICClosetParamsId[temp_VRICFlag];
+            uint CurveStartIndex = VRICCurveStartIndex[temp_VRICFlag];
+            ///////////////////////////////////////////////////////////////////////////////////////
+            
+            if (RealGradientScale >= 0)
+            {
+                FParamsArr data = ParamsBufferArr[ClosetParamsId];
+                float3 GradientDir = normalize(data.GradientDir);
+                float3 GradientOrigin = data.GradientOrigin;
+            
+            // Draw UV - V
+#if SHADERMODE == 1
+                RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].y = saturate(RealGradientScale);
+#endif
+#if SHADERMODE == 2
+                RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].y = saturate(length(PixelPos - data.GradientOrigin) / data.GradientMax);
+#endif
+            // Draw UV - U
+                float AngleOffset = Eval(KeyBuffer, CurveStartIndex, data.KeyNum, RealGradientScale);
+                float3 UVCurvePoint = PointAtLine(PixelPos, data.UVCurveOrigin, GradientDir);
+                float3 PixAtLinePoint = PointAtLine(PixelPos, GradientOrigin, GradientDir);
+                float3 A = UVCurvePoint - PixAtLinePoint;
+                float3 B = PixelPos - PixAtLinePoint;
+                float AngleScale = GetAngle(A, B);
+                if (IsNearlyZero(length((normalize(cross(A, B)) + GradientDir))))
+                {
+                    AngleScale = 360 - AngleScale; // Since the dot can only calculate angles of 180 degrees at most, additional calculations are added to ensure that the result is 0 to 360
+                }
+            // if > 0, AngleOffset = AngleOffset; 
+            // if < 0, -40 => 320, -370 => 710, -500 => 580;
+            // AngleOffset = 30, same layer: 10 => 40, 350 => 20
+            // AngleOffset = -30, same layer: 10 => 340, 350 => 320
+            // Step 1
+                AngleOffset = floor(abs(AngleOffset - fmod(AngleOffset, 360.0))) + fmod(AngleOffset, 360.0) + IsNegative(AngleOffset) * 360.0;
+            // Step 2
+                AngleScale = fmod(AngleOffset + AngleScale + IsNegative(AngleOffset + AngleScale) * 360.0, 360.0);
+                
+                RDGRWTexture[uint3(DispatchThreadId.xy, TrianglesBuffer[tri].MID)].x = AngleScale / 360.0;
+            }
+
+        }
+    }
+    
+
+}

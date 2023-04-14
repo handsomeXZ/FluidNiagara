@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -23,7 +24,8 @@ public:
 
 private:
 	TSharedRef<SWidget> MakeDisplayToolBar(const TSharedPtr<FExtender> ExtendersIn);
-	TSharedRef<SWidget> MakeToolBar(const TSharedPtr<FExtender> ExtendersIn);
+	TSharedRef<SWidget> MakeCenterToolBar(const TSharedPtr<FExtender> ExtendersIn);
+	TSharedRef<SWidget> MakeRightToolBar(const TSharedPtr<FExtender> ExtendersIn);
 
 	/** The viewport that we are in */
 	TWeakPtr<class SFDOverlay3DViewport> FDOverlay3DViewportPtr;

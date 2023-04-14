@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright HandsomeCheese. All Rights Reserved.
 
 #pragma once
 
@@ -29,10 +29,15 @@ public:
 	TSharedPtr<FUICommandInfo> YChannel;
 	TSharedPtr<FUICommandInfo> ZChannel;
 	TSharedPtr<FUICommandInfo> WChannel;
+
 	TSharedPtr<FUICommandInfo> Compact;
 	TSharedPtr<FUICommandInfo> Iterable;
 	TSharedPtr<FUICommandInfo> Exploded;
 
+	TSharedPtr<FUICommandInfo> DefaultLight;
+	TSharedPtr<FUICommandInfo> Emissive;
+	TSharedPtr<FUICommandInfo> Translucency;
+	TSharedPtr<FUICommandInfo> Transition;
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 

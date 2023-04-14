@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright HandsomeCheese. All Rights Reserved.
 
 #pragma once
 
@@ -87,15 +87,6 @@ public:
 		OnInitiateFocusCameraOnSelection.Broadcast();
 	}
 
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGizmoModeChange, EGizmoMode NewGizmoMode);
-	FOnGizmoModeChange OnGizmoModeChange;
-
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSelectionModeChange, ESelectionMode NewSelectionMode);
-	FOnSelectionModeChange OnSelectionModeChange;
-
-	DECLARE_MULTICAST_DELEGATE(FOnInitiateFocusCameraOnSelection);
-	FOnInitiateFocusCameraOnSelection OnInitiateFocusCameraOnSelection;
-
 	virtual void OnToolEnded(UInteractiveTool* DeadTool) override 
 	{
 		OnGizmoModeChange.RemoveAll(DeadTool);
@@ -146,7 +137,16 @@ public:
 		}
 	}
 
+public:
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGizmoModeChange, EGizmoMode NewGizmoMode);
+	FOnGizmoModeChange OnGizmoModeChange;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSelectionModeChange, ESelectionMode NewSelectionMode);
+	FOnSelectionModeChange OnSelectionModeChange;
+
+	DECLARE_MULTICAST_DELEGATE(FOnInitiateFocusCameraOnSelection);
+	FOnInitiateFocusCameraOnSelection OnInitiateFocusCameraOnSelection;
 protected:
 
 	int32 SnapEnabled = (uint8)ESnapTypeFlag::NoSnap;

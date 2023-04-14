@@ -1,13 +1,13 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Util/ProgressCancel.h"
 #include "ModelingOperators.h"
 #include "InteractiveTool.h"
+#include "Context/FDOverlayAutoCalToolAPI.h"
 
 #include "FDOverlayEditorAutoCalOp.generated.h"
-
-
 
 UENUM()
 enum class EFDOverlayEditorAutoCalType : uint8
@@ -85,6 +85,8 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	int XYSize = 256;
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	bool bSuturedUV = false;
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	FString Name = TEXT("OutputName");
 	UPROPERTY(EditAnywhere, Category = "Settings")

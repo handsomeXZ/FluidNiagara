@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright HandsomeCheese. All Rights Reserved.
 
 #include "FDOverlayEditorMode.h"
 
@@ -121,16 +121,25 @@ UFDOverlayEditorMode::UFDOverlayEditorMode()
 		false);
 	struct FConstructorStatics
 	{
-		ConstructorHelpers::FObjectFinder<UMaterial> AppliedMaterialAsset;
+		ConstructorHelpers::FObjectFinder<UMaterial> DefaultAppliedMaterialAsset;
+		ConstructorHelpers::FObjectFinder<UMaterial> EmissiveAppliedMaterialAsset;
+		ConstructorHelpers::FObjectFinder<UMaterial> TranslucencyAppliedMaterialAsset;
+		ConstructorHelpers::FObjectFinder<UMaterial> TransitionAppliedMaterialAsset;
 		ConstructorHelpers::FObjectFinder<UMaterial> UnwrapMaterialAsset;
 		FConstructorStatics()
-			:AppliedMaterialAsset(TEXT("Material'/FDOverlayEditor/M_Default.M_Default'")), 
+			:DefaultAppliedMaterialAsset(TEXT("Material'/FDOverlayEditor/M_Default.M_Default'")),
+			EmissiveAppliedMaterialAsset(TEXT("Material'/FDOverlayEditor/M_DefaultEmissive.M_DefaultEmissive'")),
+			TranslucencyAppliedMaterialAsset(TEXT("Material'/FDOverlayEditor/M_DefaultTranslucency.M_DefaultTranslucency'")),
+			TransitionAppliedMaterialAsset(TEXT("Material'/FDOverlayEditor/M_DefaultTransition.M_DefaultTransition'")),
 			UnwrapMaterialAsset(TEXT("Material'/FDOverlayEditor/M_Default_UV.M_Default_UV'")){}
 			// 由于 UVUnwrap 可能存在背面三角，所以需要材质开启 “双面”
 	};
 	static FConstructorStatics ConstructorStatics;
 
-	DefaultBakeAppliedMaterialInterface = ConstructorStatics.AppliedMaterialAsset.Object;
+	DefaultBakeAppliedMaterialInterface = ConstructorStatics.DefaultAppliedMaterialAsset.Object;
+	EmissiveBakeAppliedMaterialInterface = ConstructorStatics.EmissiveAppliedMaterialAsset.Object;
+	TranslucencyBakeAppliedMaterialInterface = ConstructorStatics.TranslucencyAppliedMaterialAsset.Object;
+	TransitionBakeAppliedMaterialInterface = ConstructorStatics.TransitionAppliedMaterialAsset.Object;
 	DefaultBakeUnwrapMaterialInterface = ConstructorStatics.UnwrapMaterialAsset.Object;
 }
 
@@ -162,11 +171,27 @@ void UFDOverlayEditorMode::Enter()
 
 
 
+	SettingProperties = NewObject<UFDOverlaySettingProperties>(this);
+
+	int32 WatchId = SettingProperties->WatchProperty(SettingProperties->type,
+		[this](EAutoCalToolOutputType type) {
+			UE_LOG(LogTemp, Warning, TEXT("Test WatchProperty"));
+			UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+			UFDOverlayAutoCalToolAPI* AutoCalToolAPI = ContextStore->FindContext<UFDOverlayAutoCalToolAPI>();
+			if (AutoCalToolAPI)
+			{
+				AutoCalToolAPI->SetOutputType(type);
+			}
+		});
+	SettingProperties->SilentUpdateWatcherAtIndex(WatchId);
+	SettingProperties->CheckAndUpdateWatched();
+	PropertyObjectsToTick.Add(SettingProperties);
+
 	RegisterTools();
 	InitializeModeContexts();
 	InitializeTargets();
 	bIsActive = true;
-	
+
 }
 
 void UFDOverlayEditorMode::CreateToolkit()
@@ -199,6 +224,9 @@ void UFDOverlayEditorMode::InitializeAssetEditorContexts(UContextObjectStore& Co
 			[LivePreviewViewportClientPtr = &LivePreviewViewportClient]() -> FOnToggleOverlayChannel& {
 				return ((FFDOverlay3DViewportClient*)LivePreviewViewportClientPtr)->OnToggleOverlayChannel();
 			},
+			[LivePreviewViewportClientPtr = &LivePreviewViewportClient]() -> FOnToggleOverlayRender& {
+				return ((FFDOverlay3DViewportClient*)LivePreviewViewportClientPtr)->OnToggleOverlayRender();
+			},
 			[LivePreviewViewportClientPtr = &LivePreviewViewportClient](const FAxisAlignedBox3d& BoundingBox) {
 				// We check for the Viewport here because it might not be open at the time this
 				// method is called, e.g. during startup with an initially closed tab. And since
@@ -230,13 +258,13 @@ void UFDOverlayEditorMode::InitializeAssetEditorContexts(UContextObjectStore& Co
 		);
 		ContextStore.AddContextObject(Live2DViewportAPI);
 	}
-	//// Prep the editor-only context that we use to pass things to the mode.
-	//if (!ContextStore.FindContext<UFDOverlayInitializationContext>())
-	//{
-	//	UFDOverlayInitializationContext* InitContext = NewObject<UFDOverlayInitializationContext>();
-	//	InitContext->LivePreviewITC = Cast<UFDOverlayInitializationContext>(LivePreviewModeManager.GetInteractiveToolsContext());
-	//	ContextStore.AddContextObject(InitContext);
-	//}
+
+	UFDOverlayAutoCalToolAPI* AutoCalToolAPI = ContextStore.FindContext<UFDOverlayAutoCalToolAPI>();
+	if (!AutoCalToolAPI)
+	{
+		AutoCalToolAPI = NewObject<UFDOverlayAutoCalToolAPI>();
+		ContextStore.AddContextObject(AutoCalToolAPI);
+	}
 
 	if (!ContextStore.FindContext<UFDOverlayViewportButtonsAPI>())
 	{
@@ -244,21 +272,7 @@ void UFDOverlayEditorMode::InitializeAssetEditorContexts(UContextObjectStore& Co
 	}
 
 }
-//void UFDOverlayEditorMode::Render(IToolsContextRenderAPI* RenderAPI)
-//{
-//	if (SelectionAPI)
-//	{
-//		SelectionAPI->Render(RenderAPI);
-//	}
-//}
-//
-//void UFDOverlayEditorMode::DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI)
-//{
-//	if (SelectionAPI)
-//	{
-//		SelectionAPI->DrawHUD(Canvas, RenderAPI);
-//	}
-//}
+
 
 void UFDOverlayEditorMode::InitializeModeContexts() 
 {
@@ -274,14 +288,6 @@ void UFDOverlayEditorMode::InitializeModeContexts()
 	LivePreviewWorld = Live3DPreviewAPI->GetLivePreviewWorld();
 	ContextsToUpdateOnToolEnd.Add(Live3DPreviewAPI);
 
-	//UFDOverlayViewportButtonsAPI* ViewportButtonsAPI = ContextStore->FindContext<UFDOverlayViewportButtonsAPI>();
-	//check(ViewportButtonsAPI);
-	//ContextsToUpdateOnToolEnd.Add(ViewportButtonsAPI);
-
-	//UFDOverlayLive2DViewportAPI* Live2DPreviewAPI = ContextStore->FindContext<UFDOverlayLive2DViewportAPI>();
-	//check(Live2DPreviewAPI);
-	//ContextsToUpdateOnToolEnd.Add(Live2DPreviewAPI);
-
 
 	// 辅助函数，用于添加模式自己创建的上下文，而不是从资产编辑器中获取。
 	auto AddContextObject = [this, ContextStore](UFDOverlayContextObject* Object)
@@ -293,86 +299,8 @@ void UFDOverlayEditorMode::InitializeModeContexts()
 		ContextsToUpdateOnToolEnd.Add(Object);
 	};
 
-	/*UUVToolEmitChangeAPI* EmitChangeAPI = NewObject<UUVToolEmitChangeAPI>();
-	EmitChangeAPI = NewObject<UUVToolEmitChangeAPI>();
-	EmitChangeAPI->Initialize(GetInteractiveToolsContext()->ToolManager);
-	AddContextObject(EmitChangeAPI);*/
-
-	//UUVToolAssetAndChannelAPI* AssetAndLayerAPI = NewObject<UUVToolAssetAndChannelAPI>();
-	//AssetAndLayerAPI->RequestChannelVisibilityChangeFunc = [this](const TArray<int32>& LayerPerAsset, bool bEmitUndoTransaction) {
-	//	SetDisplayedUVChannels(LayerPerAsset, bEmitUndoTransaction);
-	//};
-	//AssetAndLayerAPI->NotifyOfAssetChannelCountChangeFunc = [this](int32 AssetID) {
-	//	// Don't currently need to do anything because the layer selection menu gets populated
-	//	// from scratch each time that it's opened.
-	//};
-	//AssetAndLayerAPI->GetCurrentChannelVisibilityFunc = [this]() {
-	//	TArray<int32> VisibleLayers;
-	//	VisibleLayers.SetNum(ToolTargets.Num());
-	//	for (int32 AssetID = 0; AssetID < ToolTargets.Num(); ++AssetID)
-	//	{
-	//		VisibleLayers[AssetID] = GetDisplayedChannel(AssetID);
-	//	}
-	//	return VisibleLayers;
-	//};
-	//AddContextObject(AssetAndLayerAPI);
-
-	/*SelectionAPI = NewObject<UUVToolSelectionAPI>();
-	SelectionAPI->Initialize(GetToolManager(), GetWorld(),
-		GetInteractiveToolsContext()->InputRouter, LivePreviewAPI, EmitChangeAPI);
-	AddContextObject(SelectionAPI);
-
-	UUVEditorToolPropertiesAPI* UVEditorToolPropertiesAPI = NewObject<UUVEditorToolPropertiesAPI>();
-	AddContextObject(UVEditorToolPropertiesAPI);*/
-
 
 }
-
-//FDynamicMesh3 UFDOverlayEditorMode::GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents)
-//{
-//	//IPersistentDynamicMeshSource* DynamicMeshSource = Cast<IPersistentDynamicMeshSource>(Target);
-//	//if (DynamicMeshSource)
-//	//{
-//	//	UDynamicMesh* DynamicMesh = DynamicMeshSource->GetDynamicMeshContainer();
-//	//	FDynamicMesh3 Mesh;
-//	//	DynamicMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh) { Mesh = ReadMesh; });
-//	//	return Mesh;
-//	//}
-//
-//	// TODO: Handle tangent computation. For now skip if tangents requested.
-//	IDynamicMeshProvider* DynamicMeshProvider = Cast<IDynamicMeshProvider>(Target);
-//	if (DynamicMeshProvider && !bWantMeshTangents)
-//	{
-//		return DynamicMeshProvider->GetDynamicMesh();
-//	}
-//	FDynamicMesh3 mesh;
-//	return mesh;
-//
-//
-//	//IMeshDescriptionProvider* MeshDescriptionProvider = Cast<IMeshDescriptionProvider>(Target);
-//	//FDynamicMesh3 Mesh(EMeshComponents::FaceGroups);
-//	//Mesh.EnableAttributes();
-//	//if (MeshDescriptionProvider)
-//	//{
-//	//	FMeshDescriptionToDynamicMesh Converter;
-//	//	if (bWantMeshTangents)
-//	//	{
-//	//		FGetMeshParameters GetMeshParams;
-//	//		GetMeshParams.bWantMeshTangents = true;
-//	//		FMeshDescription MeshDescriptionCopy = MeshDescriptionProvider->GetMeshDescriptionCopy(GetMeshParams);
-//	//		Converter.Convert(&MeshDescriptionCopy, Mesh, bWantMeshTangents);
-//	//	}
-//	//	else
-//	//	{
-//	//		Converter.Convert(MeshDescriptionProvider->GetMeshDescription(), Mesh, bWantMeshTangents);
-//	//	}
-//
-//	//	return Mesh;
-//	//}
-//
-//	//ensure(false);
-//	//return Mesh;
-//}
 
 void UFDOverlayEditorMode::InitializeTargets()
 {
@@ -422,8 +350,8 @@ void UFDOverlayEditorMode::InitializeTargets()
 		UFDOverlayMeshInput* ToolInputObject = NewObject<UFDOverlayMeshInput>();
 
 		if (!ToolInputObject->InitializeMeshes(ToolTargets[AssetID], AppliedCanonicalMeshes[AssetID],
-			AppliedPreviews[AssetID], AssetID, DefaultUVLayerIndex,
-			GetWorld(), LivePreviewWorld, DefaultBakeAppliedMaterialInterface, DefaultBakeUnwrapMaterialInterface, 
+			AppliedPreviews[AssetID], AssetID, DefaultUVLayerIndex, GetWorld(), LivePreviewWorld, DefaultBakeAppliedMaterialInterface, 
+			EmissiveBakeAppliedMaterialInterface, TranslucencyBakeAppliedMaterialInterface, TransitionBakeAppliedMaterialInterface, DefaultBakeUnwrapMaterialInterface,
 			FUVEditorUXSettings::UVToVertPosition, FUVEditorUXSettings::VertPositionToUV))
 		{
 			return;
@@ -435,6 +363,7 @@ void UFDOverlayEditorMode::InitializeTargets()
 		}
 		
 		Live3DPreviewAPI->OnToggleOverlayChannelDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::ChangeDynamicMaterialDisplayChannel);
+		Live3DPreviewAPI->OnToggleOverlayRenderDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::ChangeDynamicMaterialDisplayRender);
 		Live2DViewportAPI->OnSwitchMaterialIDModeDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::SwitchDynamicMaterialDisplayIDMode);
 		Live2DViewportAPI->OnMaterialIDAddDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::AddDynamicMaterialDisplayID);
 		Live2DViewportAPI->OnMaterialIDSubDelegate().AddUObject(ToolInputObject, &UFDOverlayMeshInput::SubDynamicMaterialDisplayID);
@@ -492,7 +421,11 @@ void UFDOverlayEditorMode::InitializeTargets()
 
 	// Finish initializing the selection api
 	//SelectionAPI->SetTargets(ToolInputObjects);
-
+	DefaultBakeAppliedMaterialInterface = nullptr;
+	EmissiveBakeAppliedMaterialInterface = nullptr;
+	TranslucencyBakeAppliedMaterialInterface = nullptr;
+	TransitionBakeAppliedMaterialInterface = nullptr;
+	DefaultBakeUnwrapMaterialInterface = nullptr;
 }
 
 
@@ -522,6 +455,24 @@ void UFDOverlayEditorMode::ActivateDefaultTool()
 	}
 }
 
+void UFDOverlayEditorMode::FocusLivePreviewCameraOnSelection()
+{
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UFDOverlayLive3DPreviewAPI* Live3DPreviewAPI = ContextStore->FindContext<UFDOverlayLive3DPreviewAPI>();
+	if (!Live3DPreviewAPI)
+	{
+		return;
+	}
+
+	FAxisAlignedBox3d SelectionBoundingBox;
+
+	for (const UFDOverlayMeshInput* target : ToolInputObjects)
+	{
+		SelectionBoundingBox.Contain(target->AppliedCanonical->GetBounds());
+	}
+
+	Live3DPreviewAPI->SetLivePreviewCameraToLookAtVolume(SelectionBoundingBox);
+}
 
 void UFDOverlayEditorMode::RegisterTools() 
 {
@@ -530,6 +481,8 @@ void UFDOverlayEditorMode::RegisterTools()
 
 	UFDOverlayEditorAutoCalToolBuilder* FDOverlayEditorAutoCalToolBuilder = NewObject<UFDOverlayEditorAutoCalToolBuilder>();
 	FDOverlayEditorAutoCalToolBuilder->Targets = &ToolInputObjects;
+	FDOverlayEditorAutoCalToolBuilder->LivePreviewWorld = &LivePreviewWorld;
+	
 	RegisterTool(CommandInfos.AutoCalTool, TEXT("AutoCalTool"), FDOverlayEditorAutoCalToolBuilder);
 
 }
@@ -541,7 +494,12 @@ TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> UFDOverlayEditorMode::GetModeCom
 
 void UFDOverlayEditorMode::ApplyChanges()
 {
-	
+	UContextObjectStore* ContextStore = GetInteractiveToolsContext()->ToolManager->GetContextObjectStore();
+	UFDOverlayLive3DPreviewAPI* Live3DPreviewAPI = ContextStore->FindContext<UFDOverlayLive3DPreviewAPI>();
+	if (Live3DPreviewAPI)
+	{
+		Live3DPreviewAPI->OnApplyChangesDelegate.Broadcast();
+	}
 }
 bool UFDOverlayEditorMode::CanApplyChanges() const
 {
@@ -571,11 +529,6 @@ void UFDOverlayEditorMode::Exit()
 	// inaccessible, so we end up having to do this to force the shutdown right now.
 	GetToolManager()->DeactivateTool(EToolSide::Mouse, EToolShutdownType::Cancel);
 
-	//for (UUVToolAction* Action : RegisteredActions)
-	//{
-	//	Action->Shutdown();
-	//}
-	//RegisteredActions.Reset();
 
 	for (TObjectPtr<UFDOverlayMeshInput> ToolInput : ToolInputObjects)
 	{
@@ -593,13 +546,8 @@ void UFDOverlayEditorMode::Exit()
 	AppliedCanonicalMeshes.Reset();
 	ToolTargets.Reset();
 
-	//if (BackgroundVisualization)
-	//{
-	//	BackgroundVisualization->Disconnect();
-	//	BackgroundVisualization = nullptr;
-	//}
 
-	//PropertyObjectsToTick.Empty();
+	PropertyObjectsToTick.Empty();
 	LivePreviewWorld = nullptr;
 
 	bIsActive = false;
@@ -614,13 +562,6 @@ void UFDOverlayEditorMode::Exit()
 		}
 	}
 
-	//GetInteractiveToolsContext()->OnRender.RemoveAll(this);
-	//GetInteractiveToolsContext()->OnDrawHUD.RemoveAll(this);
-	//if (LivePreviewITC.IsValid())
-	//{
-	//	LivePreviewITC->OnRender.RemoveAll(this);
-	//	LivePreviewITC->OnDrawHUD.RemoveAll(this);
-	//}
 
 	FEditorDelegates::PreBeginPIE.Remove(BeginPIEDelegateHandle);
 	FEditorDelegates::EndPIE.Remove(EndPIEDelegateHandle);
@@ -630,5 +571,37 @@ void UFDOverlayEditorMode::Exit()
 	Super::Exit();
 }
 
+UObject* UFDOverlayEditorMode::GetSettingsObject()
+{
+	if (SettingProperties)
+	{
+		return SettingProperties;
+	}
+	return nullptr;
+}
+
+void UFDOverlayEditorMode::ModeTick(float DeltaTime)
+{
+	Super::ModeTick(DeltaTime);
+
+
+	for (TObjectPtr<UInteractiveToolPropertySet>& Propset : PropertyObjectsToTick)
+	{
+		if (Propset)
+		{
+			if (Propset->IsPropertySetEnabled())
+			{
+				Propset->CheckAndUpdateWatched();
+			}
+			else
+			{
+				Propset->SilentUpdateWatched();
+			}
+		}
+	}
+
+
+
+}
 
 #undef LOCTEXT_NAMESPACE

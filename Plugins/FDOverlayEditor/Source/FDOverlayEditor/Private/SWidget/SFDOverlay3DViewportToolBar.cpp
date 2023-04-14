@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #include "SWidget/SFDOverlay3DViewportToolBar.h"
 
 #include "FDOverlayEditorModeCommands.h"
@@ -41,7 +42,14 @@ void SFDOverlay3DViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr
 		.Padding(ToolbarSlotPadding)
 		.HAlign(HAlign_Center)
 		[
-			MakeToolBar(InArgs._Extenders)
+			MakeCenterToolBar(InArgs._Extenders)
+		];
+
+	MainBoxPtr->AddSlot()
+		.Padding(ToolbarSlotPadding)
+		.HAlign(HAlign_Right)
+		[
+			MakeRightToolBar(InArgs._Extenders)
 		];
 
 	SViewportToolBar::Construct(SViewportToolBar::FArguments());
@@ -56,7 +64,7 @@ TSharedRef<SWidget> SFDOverlay3DViewportToolBar::MakeDisplayToolBar(const TShare
 		.MenuExtenders(ExtendersIn);
 }
 
-TSharedRef<SWidget> SFDOverlay3DViewportToolBar::MakeToolBar(const TSharedPtr<FExtender> ExtendersIn)
+TSharedRef<SWidget> SFDOverlay3DViewportToolBar::MakeRightToolBar(const TSharedPtr<FExtender> ExtendersIn)
 {
 	// 按钮通过 SFDOverlay3DViewport::BindCommands() 中的命令绑定连接到实际功能，
 	// 工具栏在 SFDOverlay3DViewport::MakeViewportToolbar() 中构建。
@@ -91,6 +99,48 @@ TSharedRef<SWidget> SFDOverlay3DViewportToolBar::MakeToolBar(const TSharedPtr<FE
 		static FName WChannelName = FName(TEXT("WChannel"));
 		ToolbarBuilder.AddToolBarButton(FFDOverlayEditorModeCommands::Get().WChannel, NAME_None, TAttribute<FText>(), TAttribute<FText>(),
 			TAttribute<FSlateIcon>(FSlateIcon(FFDOverlayStyle::Get().GetStyleSetName(), "FDOverlay.WChannel")), WChannelName);
+
+		ToolbarBuilder.EndBlockGroup();
+
+	}
+
+	ToolbarBuilder.EndSection();
+
+	return ToolbarBuilder.MakeWidget();
+
+
+}
+
+TSharedRef<SWidget> SFDOverlay3DViewportToolBar::MakeCenterToolBar(const TSharedPtr<FExtender> ExtendersIn)
+{
+	FSlimHorizontalToolBarBuilder ToolbarBuilder(CommandList, FMultiBoxCustomization::None, ExtendersIn);
+
+	FName ToolBarStyle = "EditorViewportToolBar";
+	ToolbarBuilder.SetStyle(&FAppStyle::Get(), ToolBarStyle);
+	ToolbarBuilder.SetLabelVisibility(EVisibility::Collapsed);
+
+	ToolbarBuilder.BeginSection("MeshRenderMenu");
+	{
+		ToolbarBuilder.BeginBlockGroup();
+
+		// Default lighting 
+		static FName DefaultLightName = FName(TEXT("DefaultLight"));
+		ToolbarBuilder.AddToolBarButton(FFDOverlayEditorModeCommands::Get().DefaultLight, NAME_None, TAttribute<FText>(), TAttribute<FText>(),
+			TAttribute<FSlateIcon>(FSlateIcon(FFDOverlayStyle::Get().GetStyleSetName(), "FDOverlay.DefaultLight")), DefaultLightName);
+
+		// Emissive
+		static FName EmissiveName = FName(TEXT("Emissive"));
+		ToolbarBuilder.AddToolBarButton(FFDOverlayEditorModeCommands::Get().Emissive, NAME_None, TAttribute<FText>(), TAttribute<FText>(),
+			TAttribute<FSlateIcon>(FSlateIcon(FFDOverlayStyle::Get().GetStyleSetName(), "FDOverlay.Emissive")), EmissiveName);
+
+		// Default lighting 
+		static FName TranslucencyName = FName(TEXT("Translucency"));
+		ToolbarBuilder.AddToolBarButton(FFDOverlayEditorModeCommands::Get().Translucency, NAME_None, TAttribute<FText>(), TAttribute<FText>(),
+			TAttribute<FSlateIcon>(FSlateIcon(FFDOverlayStyle::Get().GetStyleSetName(), "FDOverlay.Translucency")), TranslucencyName);
+
+		static FName TransitionName = FName(TEXT("Transition"));
+		ToolbarBuilder.AddToolBarButton(FFDOverlayEditorModeCommands::Get().Transition, NAME_None, TAttribute<FText>(), TAttribute<FText>(),
+			TAttribute<FSlateIcon>(FSlateIcon(FFDOverlayStyle::Get().GetStyleSetName(), "FDOverlay.Transition")), TransitionName);
 
 		ToolbarBuilder.EndBlockGroup();
 

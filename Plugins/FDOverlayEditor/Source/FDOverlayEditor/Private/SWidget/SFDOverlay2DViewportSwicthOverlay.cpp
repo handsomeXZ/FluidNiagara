@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #include "SWidget/SFDOverlay2DViewportSwicthOverlay.h"
 
 #include "SPrimaryButton.h"

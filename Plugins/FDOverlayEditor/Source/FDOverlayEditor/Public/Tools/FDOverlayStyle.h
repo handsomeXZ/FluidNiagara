@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #pragma once
 
 #include "Styling/SlateStyle.h"

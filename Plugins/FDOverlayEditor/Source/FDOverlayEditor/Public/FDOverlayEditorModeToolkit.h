@@ -1,4 +1,4 @@
-
+// Copyright HandsomeCheese. All Rights Reserved.
 
 #pragma once
 
@@ -23,11 +23,16 @@ public:
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
 
+	TSharedRef<SWidget> CreateSettingsWidget();
+
 protected:
 	// FModeToolkit
 	virtual void OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool) override;
 	virtual void OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool) override;
 
+	
+	TSharedRef<SWidget> CreateSettingsWidget(UObject* SettingsObject) const;
+	
 protected:
 	TSharedPtr<SWidget> ViewportOverlayWidget;
 };

@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -5,6 +6,7 @@
 #include "Tools/UEdMode.h"
 #include "ToolTargets/ToolTarget.h" // FToolTargetTypeRequirements
 #include "GeometryBase.h"
+#include "Context/FDOverlayAutoCalToolAPI.h"
 
 #include "FDOverlayEditorMode.generated.h"
 
@@ -19,12 +21,25 @@ class UMeshOpPreviewWithBackgroundCompute;
 
 PREDECLARE_GEOMETRY(class FDynamicMesh3);
 
+
+UCLASS()
+class FDOVERLAYEDITOR_API UFDOverlaySettingProperties : public UInteractiveToolPropertySet
+{
+	GENERATED_BODY()
+public:
+	
+	UPROPERTY(EditAnywhere, Category = "Setting", meta = (DisplayName = "Output Type"))
+	EAutoCalToolOutputType type = EAutoCalToolOutputType::Texture2DArray;
+
+};
+
 UCLASS(Transient)
 class FDOVERLAYEDITOR_API UFDOverlayEditorMode : public UEdMode
 {
 	GENERATED_BODY()
 
 public:
+
 	const static FEditorModeID EM_FDOverlayEditorModeId;
 
 	const static FString ToolName;
@@ -37,6 +52,7 @@ public:
 	virtual void Enter() override;
 	virtual void Exit() override;
 	virtual void CreateToolkit() override;
+	virtual void ModeTick(float DeltaTime) override;
 	virtual TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetModeCommands() const override;
 	/**
 	 * Called by an asset editor so that a created instance of the mode has all the data it needs on Enter() to initialize itself.
@@ -46,15 +62,11 @@ public:
 		FEditorViewportClient& LivePreviewViewportClient, FEditorViewportClient& Live2DViewportClient,
 		FAssetEditorModeManager& LivePreviewModeManager, UFDOverlayViewportButtonsAPI& ViewportButtonsAPI);
 
-	//virtual void Render(IToolsContextRenderAPI* RenderAPI);
-	//virtual void DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI);
-
 	// Asset management
 	bool CanApplyChanges() const;
 	void ApplyChanges();
 
-	// TODO: 还未实现
-	void FocusLivePreviewCameraOnSelection() {};
+	void FocusLivePreviewCameraOnSelection();
 
 	// 获取该模式的工具目标需求。产生的目标经过进一步的处理，将它们转化为工具获得的输入对象(因为这些需要预览网格等)。
 	static const FToolTargetTypeRequirements& GetToolTargetRequirements();
@@ -66,6 +78,13 @@ public:
 	// 它目前根本不是基类的一部分……应该吗?
 	virtual bool IsDefaultToolActive();
 	bool IsActive() { return bIsActive; }
+public:
+
+	UPROPERTY()
+	TObjectPtr<UFDOverlaySettingProperties> SettingProperties = nullptr;
+	
+	UObject* GetSettingsObject();
+
 
 protected:
 	// Not sure whether we need these yet
@@ -75,8 +94,6 @@ protected:
 
 	void InitializeModeContexts();
 	void InitializeTargets();
-
-	//UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents = false);
 protected:
 	
 	bool bIsActive = false;
@@ -117,10 +134,6 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UWorld> LivePreviewWorld = nullptr;
 
-
-	//// 用于将实时预览中的Render/ DrawHUD 调用转发给api对象。
-	//TWeakObjectPtr<UEditorInteractiveToolsContext> LivePreviewITC;
-
 	UPROPERTY()
 	TObjectPtr<UFDOverlaySelectionAPI> SelectionAPI = nullptr;
 
@@ -134,5 +147,11 @@ protected:
 	FDelegateHandle CancelPIEDelegateHandle;
 
 	UMaterialInterface* DefaultBakeAppliedMaterialInterface = nullptr;
+	UMaterialInterface* EmissiveBakeAppliedMaterialInterface = nullptr;
+	UMaterialInterface* TranslucencyBakeAppliedMaterialInterface = nullptr;
+	UMaterialInterface* TransitionBakeAppliedMaterialInterface = nullptr;
 	UMaterialInterface* DefaultBakeUnwrapMaterialInterface = nullptr;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UInteractiveToolPropertySet>> PropertyObjectsToTick;
 };

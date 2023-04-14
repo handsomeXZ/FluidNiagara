@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #include "FDOverlayMeshInput.h"
 
 #include "DynamicMesh/DynamicMesh3.h"
@@ -13,8 +14,9 @@ using namespace UE::Geometry;
 
 bool UFDOverlayMeshInput::InitializeMeshes(UToolTarget* Target, TSharedPtr<FDynamicMesh3> AppliedCanonicalIn,
 	UMeshOpPreviewWithBackgroundCompute* AppliedPreviewIn, int32 AssetIDIn, int32 UVLayerIndexIn, UWorld* UnwrapWorld,
-	UWorld* LivePreviewWorld, UMaterialInterface* DefaultBakeAppliedMaterialInterfaceIn, UMaterialInterface* DefaultBakeUnwrapMaterialInterfaceIn, TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn,
-	TFunction<FVector2f(const FVector3d&)> VertPositionToUVFuncIn)
+	UWorld* LivePreviewWorldIn, UMaterialInterface* DefaultBakeAppliedMaterialInterfaceIn, UMaterialInterface* EmissiveBakeAppliedMaterialInterfaceIn,
+	UMaterialInterface* TranslucencyBakeUnwrapMaterialInterfaceIn, UMaterialInterface* TransitionBakeAppliedMaterialInterfaceIn, UMaterialInterface* DefaultBakeUnwrapMaterialInterfaceIn, 
+	TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn, TFunction<FVector2f(const FVector3d&)> VertPositionToUVFuncIn)
 {
 
 	SourceTarget = Target;
@@ -25,6 +27,9 @@ bool UFDOverlayMeshInput::InitializeMeshes(UToolTarget* Target, TSharedPtr<FDyna
 	UVLayerIndex = UVLayerIndexIn;
 	AppliedCanonical = AppliedCanonicalIn;
 	DefaultBakeAppliedMaterialInterface = DefaultBakeAppliedMaterialInterfaceIn;
+	EmissiveBakeAppliedMaterialInterface = EmissiveBakeAppliedMaterialInterfaceIn;
+	TranslucencyBakeUnwrapMaterialInterface = TranslucencyBakeUnwrapMaterialInterfaceIn;
+	TransitionBakeAppliedMaterialInterface = TransitionBakeAppliedMaterialInterfaceIn;
 	DefaultBakeUnwrapMaterialInterface = DefaultBakeUnwrapMaterialInterfaceIn;
 
 	if (!AppliedCanonical->HasAttributes())
@@ -47,7 +52,10 @@ bool UFDOverlayMeshInput::InitializeMeshes(UToolTarget* Target, TSharedPtr<FDyna
 
 	FComponentMaterialSet MSet = UE::ToolTarget::GetMaterialSet(SourceTarget);
 	PrevMaterialSet.Materials.Empty(MSet.Materials.Num());
-	BakeAppliedMaterialSet.Materials.Empty(MSet.Materials.Num());
+	DefaultBakeAppliedMaterialSet.Materials.Empty(MSet.Materials.Num());
+	EmissiveBakeAppliedMaterialSet.Materials.Empty(MSet.Materials.Num());
+	TranslucencyBakeAppliedMaterialSet.Materials.Empty(MSet.Materials.Num());
+	TransitionBakeAppliedMaterialSet.Materials.Empty(MSet.Materials.Num());
 	BakeUnwrapMaterialSet.Materials.Empty(MSet.Materials.Num());
 	int MID = 0;
 	for (UMaterialInterface* MI : MSet.Materials)
@@ -56,9 +64,21 @@ bool UFDOverlayMeshInput::InitializeMeshes(UToolTarget* Target, TSharedPtr<FDyna
 		UMaterialInstanceDynamic* MIPrevDynamic = UMaterialInstanceDynamic::Create(MI, SourceTarget, UniqueDynamicName);
 		PrevMaterialSet.Materials.Add(MIPrevDynamic);
 
-		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("BakeAppliedMID_%03d"), MID)));
-		UMaterialInstanceDynamic* MIBakeAppliedDynamic = UMaterialInstanceDynamic::Create(DefaultBakeAppliedMaterialInterface, SourceTarget, UniqueDynamicName);
-		BakeAppliedMaterialSet.Materials.Add(MIBakeAppliedDynamic);
+		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("DefaultBakeAppliedMID_%03d"), MID)));
+		UMaterialInstanceDynamic* MIDefaultBakeAppliedDynamic = UMaterialInstanceDynamic::Create(DefaultBakeAppliedMaterialInterface, SourceTarget, UniqueDynamicName);
+		DefaultBakeAppliedMaterialSet.Materials.Add(MIDefaultBakeAppliedDynamic);
+
+		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("EmissiveBakeAppliedMID_%03d"), MID)));
+		UMaterialInstanceDynamic* MIEmissiveBakeAppliedDynamic = UMaterialInstanceDynamic::Create(EmissiveBakeAppliedMaterialInterface, SourceTarget, UniqueDynamicName);
+		EmissiveBakeAppliedMaterialSet.Materials.Add(MIEmissiveBakeAppliedDynamic);
+
+		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("TranslucencyBakeAppliedMID_%03d"), MID)));
+		UMaterialInstanceDynamic* MITranslucencyBakeAppliedDynamic = UMaterialInstanceDynamic::Create(TranslucencyBakeUnwrapMaterialInterface, SourceTarget, UniqueDynamicName);
+		TranslucencyBakeAppliedMaterialSet.Materials.Add(MITranslucencyBakeAppliedDynamic);
+
+		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("TransitionBakeAppliedMID_%03d"), MID)));
+		UMaterialInstanceDynamic* MITransitionBakeAppliedDynamic = UMaterialInstanceDynamic::Create(TransitionBakeAppliedMaterialInterface, SourceTarget, UniqueDynamicName);
+		TransitionBakeAppliedMaterialSet.Materials.Add(MITransitionBakeAppliedDynamic);
 
 		UniqueDynamicName = MakeUniqueObjectName(SourceTarget, UMaterialInstanceDynamic::StaticClass(), FName(FString::Printf(TEXT("BakeUnwrapMID_%03d"), MID)));
 		UMaterialInstanceDynamic* MIBakeUnwrapDynamic = UMaterialInstanceDynamic::Create(DefaultBakeUnwrapMaterialInterface, SourceTarget, UniqueDynamicName);
@@ -144,14 +164,18 @@ void UFDOverlayMeshInput::GenerateUVUnwrapMesh(const FDynamicMeshUVOverlay& UVOv
 
 void UFDOverlayMeshInput::ShowToMesh(const UTexture2DArray* BakedSource)
 {
-	for (int Mid = 0; Mid < BakeAppliedMaterialSet.Materials.Num(); Mid++)
+	UMaterialInstanceDynamic* MI = nullptr;
+	FComponentMaterialSet* MSet = nullptr;
+	
+	FindCurrentRenderMaterial(MI, MSet);
+	for (int Mid = 0; Mid < MSet->Materials.Num(); Mid++)
 	{
-		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeAppliedMaterialSet.Materials[Mid];
+		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)MSet->Materials[Mid];
 		MIDynamic->SetTextureParameterValue(FName(TEXT("Input")), (UTexture*)BakedSource);
 		MIDynamic->SetScalarParameterValue(FName(TEXT("MID")), Mid);
 		UE_LOG(LogTemp, Warning, TEXT("Change DMI Success %d"), Mid);
 	}
-	AppliedPreview->ConfigureMaterials(BakeAppliedMaterialSet.Materials, DefaultBakeAppliedMaterialInterface);
+	AppliedPreview->ConfigureMaterials(MSet->Materials, MI);
 
 	for (int Mid = 0; Mid < BakeUnwrapMaterialSet.Materials.Num(); Mid++)
 	{
@@ -166,13 +190,17 @@ void UFDOverlayMeshInput::ShowToMesh(const UTexture2DArray* BakedSource)
 }
 
 void UFDOverlayMeshInput::ChangeDynamicMaterialDisplayChannel(uint8 Channel, bool bIsDisplay)
-{
-	for (int Mid = 0; Mid < BakeAppliedMaterialSet.Materials.Num(); Mid++)
+{	
+	UMaterialInstanceDynamic* MI = nullptr;
+	FComponentMaterialSet* MSet = nullptr;
+
+	FindCurrentRenderMaterial(MI, MSet);
+	for (int Mid = 0; Mid < MSet->Materials.Num(); Mid++)
 	{
-		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)BakeAppliedMaterialSet.Materials[Mid];
+		UMaterialInstanceDynamic* MIDynamic = (UMaterialInstanceDynamic*)MSet->Materials[Mid];
 		MIDynamic->SetScalarParameterValue(FName(FString::Printf(TEXT("Channel%d"), Channel)), bIsDisplay);
 	}
-	AppliedPreview->ConfigureMaterials(BakeAppliedMaterialSet.Materials, DefaultBakeAppliedMaterialInterface);
+	AppliedPreview->ConfigureMaterials(MSet->Materials, MI);
 
 	for (int Mid = 0; Mid < BakeUnwrapMaterialSet.Materials.Num(); Mid++)
 	{
@@ -180,6 +208,47 @@ void UFDOverlayMeshInput::ChangeDynamicMaterialDisplayChannel(uint8 Channel, boo
 		MIDynamic->SetScalarParameterValue(FName(FString::Printf(TEXT("Channel%d"), Channel)), bIsDisplay);
 	}
 	UnwrapPreview->ConfigureMaterials(BakeUnwrapMaterialSet.Materials, DefaultBakeUnwrapMaterialInterface);
+}
+
+void UFDOverlayMeshInput::ChangeDynamicMaterialDisplayRender(uint8 RenderModeIn)
+{
+	RenderMode = RenderModeIn;
+	UMaterialInstanceDynamic* MI = nullptr;
+	FComponentMaterialSet* MSet = nullptr;
+
+	FindCurrentRenderMaterial(MI, MSet);
+	AppliedPreview->ConfigureMaterials(MSet->Materials, MI);
+}
+
+void UFDOverlayMeshInput::FindCurrentRenderMaterial(UMaterialInstanceDynamic*& MI, FComponentMaterialSet*& MSet)
+{
+	switch (RenderMode)
+	{
+	case 0:
+		{
+			MI = (UMaterialInstanceDynamic*)(DefaultBakeAppliedMaterialInterface);
+			MSet = &DefaultBakeAppliedMaterialSet;
+			return;
+		}
+	case 1:
+		{
+			MI = (UMaterialInstanceDynamic*)(EmissiveBakeAppliedMaterialInterface);
+			MSet = &EmissiveBakeAppliedMaterialSet;
+			return;
+		}
+	case 2:
+		{
+			MI = (UMaterialInstanceDynamic*)(TranslucencyBakeUnwrapMaterialInterface);
+			MSet = &TranslucencyBakeAppliedMaterialSet;
+			return;
+		}
+	case 3:
+		{
+			MI = (UMaterialInstanceDynamic*)(TransitionBakeAppliedMaterialInterface);
+			MSet = &TransitionBakeAppliedMaterialSet;
+			return;
+		}
+	}
 }
 
 void UFDOverlayMeshInput::SwitchDynamicMaterialDisplayIDMode(uint8 style /* = 0 */)
@@ -234,4 +303,18 @@ void UFDOverlayMeshInput::Shutdown()
 	SourceTarget = nullptr;
 
 	OnCanonicalModified.Clear();
+
+
+	DefaultBakeAppliedMaterialInterface = nullptr;
+	EmissiveBakeAppliedMaterialInterface = nullptr;
+	TranslucencyBakeUnwrapMaterialInterface = nullptr;
+	TransitionBakeAppliedMaterialInterface = nullptr;
+	DefaultBakeUnwrapMaterialInterface = nullptr;
+	PrevMaterialSet.Materials.Empty();
+	DefaultBakeAppliedMaterialSet.Materials.Empty();
+	EmissiveBakeAppliedMaterialSet.Materials.Empty();
+	TranslucencyBakeAppliedMaterialSet.Materials.Empty();
+	TransitionBakeAppliedMaterialSet.Materials.Empty();
+	BakeUnwrapMaterialSet.Materials.Empty();
+
 }

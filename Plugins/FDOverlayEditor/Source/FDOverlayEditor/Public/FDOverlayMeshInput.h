@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright HandsomeCheese. All Rights Reserved.
 
 #pragma once
 
@@ -90,15 +90,16 @@ public:
 	int32 UVLayerIndex = 0;
 	int32 MaterialIndex = -1;
 	int32 MaxMaterialIndex = -1;
+	int32 RenderMode = 0;
 
 	// 用于生成和烘烤展开的映射。
 	TFunction<FVector3d(const FVector2f&)> UVToVertPosition;
 	TFunction<FVector2f(const FVector3d&)> VertPositionToUV;
 
 	bool InitializeMeshes(UToolTarget* Target, TSharedPtr<UE::Geometry::FDynamicMesh3> AppliedCanonicalIn,
-		UMeshOpPreviewWithBackgroundCompute* AppliedPreviewIn, int32 AssetIDIn, int32 UVLayerIndexIn, 
-		UWorld* UnwrapWorld, UWorld* LivePreviewWorld, UMaterialInterface* WorkingMaterialIn, UMaterialInterface* DefaultBakeMaterialInterfaceIn,
-		TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn, 
+		UMeshOpPreviewWithBackgroundCompute* AppliedPreviewIn, int32 AssetIDIn, int32 UVLayerIndexIn, UWorld* UnwrapWorld,
+		UWorld* LivePreviewWorldIn, UMaterialInterface* DefaultBakeAppliedMaterialInterfaceIn, UMaterialInterface* EmissiveBakeAppliedMaterialInterfaceIn,
+		UMaterialInterface* TranslucencyBakeUnwrapMaterialInterfaceIn, UMaterialInterface* TransitionBakeAppliedMaterialInterfaceIn, UMaterialInterface* DefaultBakeUnwrapMaterialInterfaceIn, TFunction<FVector3d(const FVector2f&)> UVToVertPositionFuncIn,
 		TFunction<FVector2f(const FVector3d&)> VertPositionToUVFuncIn);
 
 	void ShowToMesh(const UTexture2DArray* BakedSource);
@@ -106,122 +107,15 @@ public:
 	void Shutdown();
 
 	void ChangeDynamicMaterialDisplayChannel(uint8 Channel, bool bIsDisplay);
+	void ChangeDynamicMaterialDisplayRender(uint8 RenderMode);
 	void SwitchDynamicMaterialDisplayIDMode(uint8 style = 0);
 	void AddDynamicMaterialDisplayID();
 	void SubDynamicMaterialDisplayID();
 
+	void FindCurrentRenderMaterial(UMaterialInstanceDynamic*& MI, FComponentMaterialSet*& MSet);
+
 	void UpdateOpacity();
-	//注意以下便利函数:
-	// 1。为ChangedVids / changnedelementids / ChangedConnectivityTids 传递 nullptr 意味着所有的 vids / elements / tids 都需要分别更新。
-	//		传递 UFDOverlayMeshInput::NONE_CHANGED_ARG 相当于传递一个指向空数组的指针，意味着没有任何变化。否则，只有指向数组中的 vids / elements / tids 在更新的网格中迭代。
-	//		虽然传递这些可以使更新更快，但请注意，未能包含相关的 tids / vids / elements 会使输入对象处于无效状态或命中检查，例如，如果一个三角形指向一个未添加的新vid。
-	// 
-	// 2。ChangedVids / ChangedElementIDs 允许有新的元素，因为分割uv是很自然的。然而，ChangedConnectivityTids 必须没有新的Tids，因为Tids形成了我们的展开网格和原始层之间的对应关系。
-	//		还要注意的是，如果你正在收集基于三角形的更改的 vids / elements，你应该从 post-change mesh/overlay 中收集它们，这样你就不会错过任何添加的元素，因为删除的元素是通过更改的三角连接捕获的。
-	// 
-	// 3。FastRenderUpdateTids是一个可选的三角形列表，它的渲染数据需要更新，如果渲染缓冲区被正确分割，它可以允许更快的预览更新。如果提供，它应该是ChangedConnectivityTids的 superset，并且应该包含ChangedVids的 one-ring triangles。
-	// 
-	// 4。如果更新预览对象，请注意函数不会尝试取消任何活动计算，因此活动计算完成后可能会重置。
-
-	//// 可以作为 ChangedVids/ChangedElements/ChangedConnectivityTids 参数传入，相当于传递一个指向空数组的指针。
-	//static const TArray<int32>* const NONE_CHANGED_ARG;
-
-	///**
-	// * 更新 UnwrapPreview UV Overlay 从 UnwrapPreview vert 位置。为 positions 和 UVs 发出一个 NotifyDeferredEditCompleted。
-	// */
-	//void UpdateUnwrapPreviewOverlayFromPositions(const TArray<int32>* ChangedVids = nullptr, 
-	//	const TArray<int32>* ChangedConnectivityTids = nullptr, const TArray<int32>* FastRenderUpdateTids = nullptr) {};
-
-	///**
-	// * 从 UnwrapCanonical vert 位置 更新 UnwrapCanonical UV Overlay。为 positions 和 UVs 发出一个 NotifyDeferredEditCompleted。
-	// * 不广播，因为预期这个调用之后会有另一个调用来更新输入对象的其余部分。
-	// */
-	//void UpdateUnwrapCanonicalOverlayFromPositions(const TArray<int32>* ChangedVids = nullptr, 
-	//	const TArray<int32>* ChangedConnectivityTids = nullptr) {};
-
-	///**
-	// * 从UnwrapPreview更新AppliedPreview，不更新非预览网格。当我们只关心更新可见项时，对于在拖拽期间进行更新非常有用。
-	// * 假设UnwrapPreview中的覆盖层已经更新。
-	// */
-	//void UpdateAppliedPreviewFromUnwrapPreview(const TArray<int32>* ChangedVids = nullptr, 
-	//	const TArray<int32>* ChangedConnectivityTids = nullptr, const TArray<int32>* FastRenderUpdateTids = nullptr) {};
-
-	///**
-	// * 只更新来自AppliedPreview的UnwrapPreview，而不更新非预览网格。当我们只关心更新可见项时，对于临时更新非常有用。
-	// */
-	//void UpdateUnwrapPreviewFromAppliedPreview(
-	//	const TArray<int32>* ChangedElementIDs = nullptr, const TArray<int32>* ChangedConnectivityTids = nullptr, 
-	//	const TArray<int32>* FastRenderUpdateTids = nullptr) {};
-
-	///**
-	// * 更新非预览网格。例如，在完成拖拽后更新 canonical objects 时很有用。
-	// */
-	//void UpdateCanonicalFromPreviews(const TArray<int32>* ChangedVids = nullptr, 
-	//	const TArray<int32>* ChangedConnectivityTids = nullptr, bool bBroadcast = true) {};
-
-	///**
-	// * 从它们的 canonical对应物更新预览网格。主要用于重置预览。
-	// */
-	//void UpdatePreviewsFromCanonical(const TArray<int32>* ChangedVids = nullptr, const TArray<int32>* ChangedConnectivityTids = nullptr,
-	//	const TArray<int32>* FastRenderUpdateTids = nullptr) {};
-
-	///**
-	// * 使用UnwrapPreview中的网格更新其他网格。假设UnwrapPreview中的覆盖层已更新。
-	// * 用于在 applied preview 未与 unwrap preview 同步更新时更新所有内容(否则将使用UpdateCanonicalFromPreviews)。
-	// */
-	//void UpdateAllFromUnwrapPreview(const TArray<int32>* ChangedVids = nullptr, const TArray<int32>* ChangedConnectivityTids = nullptr, 
-	//	const TArray<int32>* FastRenderUpdateTids = nullptr, bool bBroadcast = true) {};
-
-	///**
-	// * 使用UnwrapCanonical中的网格更新其他网格。在立即应用直接对 unwrap mesh 进行操作时非常有用。
-	// */
-	//void UpdateAllFromUnwrapCanonical(const TArray<int32>* ChangedVids = nullptr, const TArray<int32>* ChangedConnectivityTids = nullptr, 
-	//	const TArray<int32>* FastRenderUpdateTids = nullptr, bool bBroadcast = true) {};
-
-	///**
-	// * 使用AppliedCanonical中的网格更新其他网格。从“original”数据重置集合。
-	// */
-	//void UpdateAllFromAppliedCanonical(const TArray<int32>* ChangedVids = nullptr, const TArray<int32>* ChangedConnectivityTids = nullptr, 
-	//	const TArray<int32>* FastRenderUpdateTids = nullptr, bool bBroadcast = true) {};
-
-	///**
-	// * 在实时预览中使用UV覆盖更新其他网格。
-	// */
-	//void UpdateAllFromAppliedPreview(const TArray<int32>* ChangedElementIDs = nullptr, 
-	//	const TArray<int32>* ChangedConnectivityTids = nullptr, const TArray<int32>* FastRenderUpdateTids = nullptr, bool bBroadcast = true) {};
-
-	///**
-	// * 使用网格更改中存储的 三角形/顶点 来更新 canonical unwrap 的所有内容。
-	// * 假设更改已经应用到规范的展开。
-	// */
-	//void UpdateFromCanonicalUnwrapUsingMeshChange(const UE::Geometry::FDynamicMeshChange& UnwrapCanonicalMeshChange, bool bBroadcast = true) {};
-
-	///**
-	// * 将展开网格中的vid转换为应用网格中的对应vid(即，与展开顶点对应的元素的父顶点)。
-	// */
-	//int32 UnwrapVidToAppliedVid(int32 UnwrapVid) { return 0; };
-
-	///**
-	// * 获得对应于给定应用vid的展开vid。如果顶点是一个接缝顶点，这些将是多个，因此有多个与之关联的UV元素。
-	// */
-	//void AppliedVidToUnwrapVids(int32 AppliedVid, TArray<int32>& UnwrapVidsOut) {};
-
-	///**
-	// * 返回底层源ToolTarget是否仍然有效。
-	// * 这是分开的IsValid，它也检查ToolTarget，
-	// * 以防我们只对ToolTarget的状态感兴趣。
-	//*/
-	//virtual bool IsToolTargetValid() const { return false; };
-
-	///**
-	// * 返回规范网格和预览网格是否仍然有效。
-	// * 这是从IsValid中分离出来的，以防我们只对规范和预览网格的状态感兴趣。
-	// */
-	//virtual bool AreMeshesValid() const { return false; };
-
-	//// UToolTarget
-	//virtual bool IsValid() const override {return false;};
-
+	
 private:
 	void GenerateUVUnwrapMesh(const UE::Geometry::FDynamicMeshUVOverlay& UVOverlay, UE::Geometry::FDynamicMesh3& UnwrapMeshOut,
 		TFunctionRef<FVector3d(const FVector2f&)> UVToVertPosition);
@@ -229,8 +123,14 @@ private:
 private:
 	// Material
 	UMaterialInterface* DefaultBakeAppliedMaterialInterface;
+	UMaterialInterface* EmissiveBakeAppliedMaterialInterface;
+	UMaterialInterface* TranslucencyBakeUnwrapMaterialInterface;
+	UMaterialInterface* TransitionBakeAppliedMaterialInterface;
 	UMaterialInterface* DefaultBakeUnwrapMaterialInterface;
 	FComponentMaterialSet PrevMaterialSet;
-	FComponentMaterialSet BakeAppliedMaterialSet;
+	FComponentMaterialSet DefaultBakeAppliedMaterialSet;
+	FComponentMaterialSet EmissiveBakeAppliedMaterialSet;
+	FComponentMaterialSet TranslucencyBakeAppliedMaterialSet;
+	FComponentMaterialSet TransitionBakeAppliedMaterialSet;
 	FComponentMaterialSet BakeUnwrapMaterialSet;
 };

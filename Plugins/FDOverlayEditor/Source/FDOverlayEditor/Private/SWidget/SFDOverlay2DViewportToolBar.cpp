@@ -1,3 +1,4 @@
+// Copyright HandsomeCheese. All Rights Reserved.
 #include "SWidget/SFDOverlay2DViewportToolBar.h"
 
 #include "FDOverlayEditorModeCommands.h"

@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright HandsomeCheese. All Rights Reserved.
 
 using UnrealBuildTool;
 
@@ -41,6 +41,7 @@ public class FDOverlayEditor : ModuleRules
 			new string[]
 			{
 				"CoreUObject",
+				"RHI",
 				"Engine",
 				"Slate",
 				"SlateCore",

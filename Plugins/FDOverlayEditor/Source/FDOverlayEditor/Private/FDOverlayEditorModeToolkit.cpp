@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright HandsomeCheese. All Rights Reserved.
 
 #include "FDOverlayEditorModeToolkit.h"
 
@@ -54,6 +54,47 @@ void FFDOverlayEditorModeToolkit::OnToolEnded(UInteractiveToolManager* Manager, 
 {
 	FModeToolkit::OnToolEnded(Manager, Tool);
 	//GetToolkitHost()->RemoveViewportOverlayWidget(ViewportOverlayWidget.ToSharedRef());
+
+}
+
+TSharedRef<SWidget> FFDOverlayEditorModeToolkit::CreateSettingsWidget()
+{
+	UFDOverlayEditorMode* Mode = Cast<UFDOverlayEditorMode>(GetScriptableEditorMode());
+	return CreateSettingsWidget(Mode->GetSettingsObject());
+}
+
+TSharedRef<SWidget> FFDOverlayEditorModeToolkit::CreateSettingsWidget(UObject* SettingsObject) const
+{
+	TSharedRef<SBorder> GridDetailsContainer =
+		SNew(SBorder)
+		.BorderImage(FAppStyle::GetBrush("NoBorder"));
+
+	TSharedRef<SWidget> Widget = SNew(SBorder)
+		.HAlign(HAlign_Fill)
+		.Padding(4)
+		[
+			SNew(SBox)
+			.MinDesiredWidth(500)
+		[
+			GridDetailsContainer
+		]
+		];
+
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+	FDetailsViewArgs GridDetailsViewArgs;
+	GridDetailsViewArgs.bAllowSearch = false;
+	GridDetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	GridDetailsViewArgs.bHideSelectionTip = true;
+	GridDetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Automatic;
+	GridDetailsViewArgs.bShowOptions = false;
+	GridDetailsViewArgs.bAllowMultipleTopLevelObjects = false;
+
+	TSharedRef<IDetailsView> GridDetailsView = PropertyEditorModule.CreateDetailView(GridDetailsViewArgs);
+	GridDetailsView->SetObject(SettingsObject);
+	GridDetailsContainer->SetContent(GridDetailsView);
+
+	return Widget;
 
 }
 
